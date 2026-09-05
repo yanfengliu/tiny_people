@@ -94,7 +94,7 @@ export function createCommunity(controller: THREE.Group) {
   box(scenery,palette.yellow,[.07,.025,.055],[2.21,FACE+.15,.475],.004).name='courtyard-bench-book';
 
   // Two low homes use the nearby black packages as their surrounding architecture.
-  function home(x:number,z:number,color:THREE.Material,number:number) {
+  function home(x:number,z:number,color:THREE.Material) {
     box(scenery,palette.cream,[.51,.38,.40],[x,BOARD+.19,z],.025);
     box(scenery,color,[.56,.055,.47],[x,BOARD+.395,z],.018);
     box(scenery,palette.dark,[.115,.26,.014],[x-.09,BOARD+.13,z+.207],.004);
@@ -107,9 +107,8 @@ export function createCommunity(controller: THREE.Group) {
     const panel = box(scenery,palette.dark,[.25,.013,.24],[x,BOARD+.43,z-.02],.004);
     panel.rotation.x=-.14;
     for(let i=0;i<3;i++) box(scenery,palette.glass,[.062,.008,.21],[x-.076+i*.076,BOARD+.441,z-.02],.002);
-    for(let i=0;i<number;i++) box(scenery,palette.coral,[.016,.04,.008],[x-.19+i*.025,BOARD+.31,z+.215],.002);
   }
-  home(-1.15,4.34,palette.turquoise,1); home(1.15,4.35,palette.coral,2);
+  home(-1.15,4.34,palette.turquoise); home(1.15,4.35,palette.coral);
   plant(-1.5,BOARD,5.02); plant(1.49,BOARD,4.74);
   bench(-.16,BOARD,5.30,0,.30);
   // Laundry, doorstep parcels, a mailbox and a book make the cavity a lived-in place.

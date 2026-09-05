@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { box, cylinder, extrude, lettering, line, ring } from './geometry';
+import { box, cylinder, extrude, line, ring } from './geometry';
 import { grainedPlastic } from './materials';
 
 function plastic(color: string, roughness = .65, metalness = 0) { return new THREE.MeshStandardMaterial({ color, roughness, metalness }); }
@@ -72,8 +72,6 @@ export function createController() {
   for (const z of [-2.65,2.65]) {
     box(railControls, coralDark, [.52,.04,1.55], [0,0,z], .17);
     box(railControls, coral, [.43,.06,1.37], [0,.035,z], .14);
-    const label = new THREE.Group(); label.rotation.y = Math.PI / 2; label.position.z = z; railControls.add(label);
-    lettering(label, coralDark, z < 0 ? 'SL' : 'SR', 0,.075,0,.18,.01);
   }
   for (let i = 0; i < 4; i++) box(railControls, i === 0 ? plastic('#c7ec8f', .4) : ink, [.13,.035,.11], [0,.035,-.42+i*.28], .025);
   box(railControls, seam, [.3,.06,.57], [0,.02,1.06], .1);
@@ -83,11 +81,10 @@ export function createController() {
   cylinder(railControls, coral, .17,.04,0,.06,-4.6);
 
   // Right Joy-Con: X north, A east, B south, Y west, joystick below.
-  for (const [letter, x, z] of [['X',.45,-5.05],['A',1.51,-4],['B',.45,-2.95],['Y',-.61,-4]] as const) {
+  for (const [x, z] of [[.45,-5.05],[1.51,-4],[.45,-2.95],[-.61,-4]]) {
     cylinder(group, seam, .64,.06,x,1.56,z);
     cylinder(group, rubber, .595,.21,x,1.68,z,.625);
     cylinder(group, charcoal, .56,.075,x,1.815,z,.59);
-    lettering(group, ink,letter,x,1.86,z,.50,.026);
   }
   box(group,seam,[.66,.055,.66],[-1.52,1.56,-5.5],.15);
   box(group,rubber,[.66,.15,.22],[-1.52,1.65,-5.5],.035);
@@ -149,7 +146,6 @@ export function createController() {
     box(group,silver,[.04,.087,.105],[x+.062,1.008,z],.004);
   }
   for (const [x,z] of [[-1.61,5.94],[1.71,5.74],[1.82,2.85]]) { ring(group,gold,.12,.035,x,.969,z); cylinder(group,seam,.082,.035,x,.95,z); }
-  lettering(group,laminate,'01',.58,.962,5.92,.17,.009);
 
   return group;
 }

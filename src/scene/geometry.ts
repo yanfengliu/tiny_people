@@ -43,22 +43,3 @@ export function line(parent: THREE.Object3D, material: Surface, points: THREE.Ve
     mesh.castShadow = false;
   }
 }
-
-// Letters are vector strokes in the XZ plane, so the app never needs raster assets or a font download.
-export function lettering(parent: THREE.Object3D, material: Surface, text: string, x: number, y: number, z: number, size = .55, radius = .024) {
-  const glyphs: Record<string, number[][][]> = {
-    X: [[[-.5,-.5],[.5,.5]],[[-.5,.5],[.5,-.5]]],
-    Y: [[[-.5,-.5],[0,0],[.5,-.5]],[[0,0],[0,.5]]],
-    A: [[[-.5,.5],[0,-.5],[.5,.5]],[[-.3,.13],[.3,.13]]],
-    B: [[[-.4,.5],[-.4,-.5],[.18,-.5],[.4,-.32],[.4,-.12],[.17,0],[-.4,0]],[[.17,0],[.45,.14],[.45,.35],[.17,.5],[-.4,.5]]],
-    S: [[[.4,-.4],[.1,-.5],[-.3,-.4],[-.4,-.1],[.3,.12],[.4,.35],[.15,.5],[-.4,.4]]],
-    R: [[[-.4,.5],[-.4,-.5],[.2,-.5],[.4,-.3],[.4,-.1],[.2,0],[-.4,0]],[[0,0],[.45,.5]]],
-    L: [[[-.4,-.5],[-.4,.5],[.4,.5]]],
-    '0': [[[-.3,-.5],[.3,-.5],[.4,-.35],[.4,.35],[.3,.5],[-.3,.5],[-.4,.35],[-.4,-.35],[-.3,-.5]]],
-    '1': [[[-.2,-.3],[0,-.5],[0,.5]],[[-.2,.5],[.2,.5]]],
-  };
-  [...text].forEach((letter, index) => {
-    const offset = (index - (text.length - 1) / 2) * size * 1.4;
-    for (const stroke of glyphs[letter] ?? []) line(parent, material, stroke.map(([px,pz]) => new THREE.Vector3(x + offset + px * size, y, z + pz * size)), radius);
-  });
-}

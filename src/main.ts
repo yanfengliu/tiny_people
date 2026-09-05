@@ -7,18 +7,11 @@ import { configureEnvironment } from './scene/environment';
 
 const mount = document.querySelector<HTMLDivElement>('#scene')!;
 const error = document.querySelector<HTMLDivElement>('#error')!;
-const app = document.querySelector<HTMLDivElement>('#app')!;
 let releaseFailedStartup: (() => void) | undefined;
 
-function enableSceneButtons(enabled: boolean) {
-  for (const button of app.querySelectorAll<HTMLButtonElement>('button')) button.disabled = !enabled;
-}
-
-function showError(message: string, reconnecting = false) {
+function showError(message: string) {
   error.textContent = message;
   error.hidden = false;
-  document.querySelector('#motion-status')!.textContent = reconnecting ? 'Waiting for graphics' : 'Graphics unavailable';
-  enableSceneButtons(false);
 }
 
 function releaseSceneAssets(scene: THREE.Scene) {
@@ -82,7 +75,6 @@ function startScene() {
   const controls = new OrbitControls(camera, canvas);
   releaseFailedStartup = () => { listeners.abort(); controls.dispose(); releaseScene(scene, renderer); };
   const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const touchPreference = window.matchMedia('(any-pointer: coarse)');
   let reducedMotion = motionPreference.matches;
   controls.enableDamping = !reducedMotion;
   controls.dampingFactor = .075;
@@ -100,38 +92,28 @@ function startScene() {
   const community = createCommunity(controller);
   scene.add(community.group);
 
-  type View = 'overview' | 'cafe' | 'courtyard' | 'homes';
-  let view: View | 'free' = 'overview';
-  const viewNames = { overview: 'Overview', cafe: 'Button café', courtyard: 'Joystick courtyard', homes: 'Circuit homes', free: 'Free view' };
-  const presetButtons = [...document.querySelectorAll<HTMLButtonElement>('button[data-view]')];
-  const pauseButton = document.querySelector<HTMLButtonElement>('#pause-life')!;
-  const viewStatus = document.querySelector('#view-status')!;
-  const motionStatus = document.querySelector('#motion-status')!;
+  let view: 'overview' | 'free' = 'overview';
   let worldTime = 0, previousFrame: number | undefined;
   let testFrozen = false, pauseRequested = false, allowReducedMotion = false;
   let suspended = false, disposed = false, contextLost = false;
   let inputBeforeContextLoss = true;
   const paused = () => pauseRequested || (reducedMotion && !allowReducedMotion);
+  const heldKeys = new Set<string>();
+  const clearHeldKeys = () => heldKeys.clear();
+  const movementKeys = new Set(['w', 'a', 's', 'd']);
+  const moveForward = new THREE.Vector3(), moveRight = new THREE.Vector3(), movement = new THREE.Vector3();
+  const worldUp = new THREE.Vector3(0, 1, 0);
 
-  function updateViewUI() {
-    app.classList.toggle('exploring', view !== 'overview');
-    viewStatus.textContent = viewNames[view];
-    for (const button of presetButtons) button.setAttribute('aria-pressed', String(button.dataset.view === view));
-  }
-
-  function updateMotionUI() {
-    const isPaused = paused();
-    pauseButton.setAttribute('aria-pressed', String(isPaused));
-    pauseButton.textContent = isPaused ? 'Resume life' : 'Pause life';
-    motionStatus.textContent = contextLost ? 'Waiting for graphics' : isPaused ? (reducedMotion && !allowReducedMotion && !pauseRequested ? 'Reduced motion' : 'Life paused') : 'Life in motion';
-  }
+  // Fit only the controller and its residents, excluding the infinite ground.
+  const bounds = new THREE.Box3().setFromObject(controller).expandByObject(community.group);
+  const framingCorners: THREE.Vector3[] = [];
+  for (const x of [bounds.min.x, bounds.max.x]) for (const y of [bounds.min.y, bounds.max.y]) for (const z of [bounds.min.z, bounds.max.z]) framingCorners.push(new THREE.Vector3(x, y, z));
 
   function togglePause() {
     if (disposed) return;
     if (paused()) { pauseRequested = false; allowReducedMotion = true; }
     else pauseRequested = true;
     previousFrame = undefined;
-    updateMotionUI();
   }
 
   function placeCamera(position: THREE.Vector3, target: THREE.Vector3) {
@@ -144,34 +126,27 @@ function startScene() {
     controls.enableDamping = !reducedMotion;
   }
 
-  function setView(next: View) {
+  function resetView() {
     if (disposed) return;
-    const portrait = camera.aspect < 1.15 && mount.clientWidth <= 700;
-    const short = mount.clientHeight <= 500;
-    let position: THREE.Vector3, target: THREE.Vector3;
-    if (next === 'overview') {
-      target = new THREE.Vector3(portrait || short ? 0 : -1.9, .8, portrait ? -1.8 : 0);
-      const scale = portrait ? Math.max(1.5, .80 / camera.aspect) : short ? 1.12 : 1;
-      position = new THREE.Vector3(portrait ? -8 : -12, 16, 18).multiplyScalar(scale);
-    } else {
-      const presets = {
-        cafe: { position: [-5, 5, -.1], target: [-1.5, 1.55, -2.75] },
-        courtyard: { position: [5, 4, 3], target: [1.8, 1.55, .15] },
-        homes: { position: [-4, 6, 9], target: [0, 1.1, 4.45] },
-      };
-      position = new THREE.Vector3().fromArray(presets[next].position);
-      target = new THREE.Vector3().fromArray(presets[next].target);
-      const scale = portrait ? Math.max(1.15, .82 / camera.aspect) : short ? 1.12 : 1;
-      position.sub(target).multiplyScalar(scale).add(target);
+    clearHeldKeys();
+    const target = new THREE.Vector3(0, .8, 0);
+    const portrait = camera.aspect < .8;
+    const direction = (portrait ? new THREE.Vector3(-2, 23, 13) : new THREE.Vector3(-12, 16, 18)).normalize();
+    const right = new THREE.Vector3().crossVectors(worldUp, direction).normalize();
+    const up = new THREE.Vector3().crossVectors(direction, right).normalize();
+    const vertical = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * (portrait ? .88 : .8);
+    let distance = controls.minDistance;
+    for (const corner of framingCorners) {
+      const relative = corner.clone().sub(target);
+      const depth = relative.dot(direction);
+      distance = Math.max(distance, depth + Math.abs(relative.dot(right)) / (vertical * camera.aspect), depth + Math.abs(relative.dot(up)) / vertical);
     }
-    placeCamera(position, target);
-    view = next;
-    updateViewUI();
+    placeCamera(direction.multiplyScalar(Math.min(distance, controls.maxDistance)).add(target), target);
+    view = 'overview';
   }
 
   function markExploring() {
     view = 'free';
-    updateViewUI();
   }
 
   function zoom(scale: number) {
@@ -182,12 +157,26 @@ function startScene() {
     markExploring();
   }
 
+  function editableTarget(target: EventTarget | null) {
+    return target instanceof HTMLElement && (target.isContentEditable || !!target.closest('input, textarea, select, [role="textbox"], [role="combobox"]'));
+  }
+
   function keyboard(event: KeyboardEvent) {
-    if (event.altKey || event.ctrlKey || event.metaKey || disposed || !controls.enabled) return;
     const key = event.key.toLowerCase();
+    // Shift is accepted only when it produces the ordinary '+' zoom character.
+    if (event.altKey || event.ctrlKey || event.metaKey || (event.shiftKey && key !== '+') || editableTarget(event.target) || editableTarget(document.activeElement)) {
+      clearHeldKeys();
+      return;
+    }
+    if (disposed || suspended || contextLost || document.hidden || !controls.enabled) return;
+    if (movementKeys.has(key)) {
+      event.preventDefault();
+      if (!event.repeat) heldKeys.add(key);
+      return;
+    }
     if (!['arrowleft', 'arrowright', 'arrowup', 'arrowdown', '+', '=', '-', '_', 'r', ' '].includes(key)) return;
     event.preventDefault();
-    if (key === 'r') setView('overview');
+    if (key === 'r') resetView();
     else if (key === ' ') { if (!event.repeat) togglePause(); }
     else if (key === '+' || key === '=') zoom(.85);
     else if (key === '-' || key === '_') zoom(1 / .85);
@@ -203,25 +192,35 @@ function startScene() {
     }
   }
 
+  function translateCamera(delta: number) {
+    if (!heldKeys.size || !controls.enabled || delta <= 0) return;
+    const forward = Number(heldKeys.has('w')) - Number(heldKeys.has('s'));
+    const right = Number(heldKeys.has('d')) - Number(heldKeys.has('a'));
+    if (!forward && !right) return;
+    moveForward.subVectors(controls.target, camera.position).setY(0).normalize();
+    moveRight.crossVectors(moveForward, worldUp).normalize();
+    movement.copy(moveForward).multiplyScalar(forward).addScaledVector(moveRight, right).normalize();
+    movement.multiplyScalar(camera.position.distanceTo(controls.target) * .22 * delta);
+    camera.position.add(movement);
+    controls.target.add(movement);
+    markExploring();
+  }
+
   function resize() {
     if (disposed) return;
     const width = Math.max(1, mount.clientWidth), height = Math.max(1, mount.clientHeight);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);
-    if (view !== 'free') setView(view);
-  }
-
-  function updateGestureHelp() {
-    document.querySelector('#gesture-help')!.textContent = touchPreference.matches
-      ? 'Drag with one finger to orbit · Pinch or use − / + to zoom'
-      : 'Drag to orbit · Scroll or use − / + to zoom';
+    if (view === 'overview') resetView();
   }
 
   function animate(milliseconds: number) {
     if (disposed || suspended || contextLost) return;
-    if (previousFrame !== undefined && !testFrozen && !paused()) worldTime += Math.min((milliseconds - previousFrame) / 1000, .05);
+    const delta = previousFrame === undefined ? 0 : THREE.MathUtils.clamp((milliseconds - previousFrame) / 1000, 0, .05);
+    if (!testFrozen && !paused()) worldTime += delta;
     previousFrame = milliseconds;
+    translateCamera(delta);
     community.update(worldTime);
     controls.update();
     renderer.render(scene, camera);
@@ -235,6 +234,7 @@ function startScene() {
   function dispose() {
     if (disposed) return;
     disposed = true;
+    clearHeldKeys();
     renderer.setAnimationLoop(null);
     listeners.abort();
     controls.removeEventListener('start', markExploring);
@@ -243,23 +243,21 @@ function startScene() {
   }
 
   window.addEventListener('resize', resize, { signal });
-  document.querySelector('#reset-view')!.addEventListener('click', () => setView('overview'), { signal });
-  pauseButton.addEventListener('click', togglePause, { signal });
-  document.querySelector('#zoom-in')!.addEventListener('click', () => zoom(.8), { signal });
-  document.querySelector('#zoom-out')!.addEventListener('click', () => zoom(1.25), { signal });
-  for (const button of presetButtons) button.addEventListener('click', () => setView(button.dataset.view as View), { signal });
   controls.addEventListener('start', markExploring);
-  canvas.addEventListener('keydown', keyboard, { signal });
+  window.addEventListener('keydown', keyboard, { signal });
+  window.addEventListener('keyup', event => heldKeys.delete(event.key.toLowerCase()), { signal });
+  window.addEventListener('blur', clearHeldKeys, { signal });
+  document.addEventListener('visibilitychange', () => { clearHeldKeys(); previousFrame = undefined; }, { signal });
+  document.addEventListener('focusin', event => { if (editableTarget(event.target)) clearHeldKeys(); }, { signal });
   motionPreference.addEventListener('change', event => {
     reducedMotion = event.matches;
     allowReducedMotion = false;
     controls.enableDamping = !reducedMotion;
     previousFrame = undefined;
-    updateMotionUI();
   }, { signal });
-  touchPreference.addEventListener('change', updateGestureHelp, { signal });
   canvas.addEventListener('webglcontextlost', event => {
     event.preventDefault();
+    clearHeldKeys();
     inputBeforeContextLoss = controls.enabled;
     controls.enabled = false;
     contextLost = true;
@@ -269,18 +267,17 @@ function startScene() {
     // creates new caches on restore; the retained source arrays re-upload then.
     // Otherwise later disposal tries deleting handles from the previous context.
     releaseSceneAssets(scene);
-    showError('The miniature lost its graphics connection. Waiting to reconnect; if it does not return, reload this page.', true);
+    showError('The miniature lost its graphics connection. Waiting to reconnect; if it does not return, reload this page.');
   }, { signal });
   canvas.addEventListener('webglcontextrestored', () => {
     contextLost = false;
     controls.enabled = inputBeforeContextLoss;
     error.hidden = true;
-    enableSceneButtons(true);
-    updateMotionUI();
     resize();
     resumeLoop();
   }, { signal });
   window.addEventListener('pagehide', event => {
+    clearHeldKeys();
     if (event.persisted) {
       suspended = true;
       previousFrame = undefined;
@@ -292,8 +289,6 @@ function startScene() {
   }, { signal });
 
   resize();
-  updateMotionUI();
-  updateGestureHelp();
   resumeLoop();
   if (import.meta.env.DEV) {
     const releaseTestClock = () => { testFrozen = false; previousFrame = undefined; };
@@ -305,8 +300,8 @@ function startScene() {
       releaseTestClock,
       residents: () => community.snapshot(),
       routes: () => community.auditRoutes(),
-      state: () => ({ time: worldTime, paused: paused(), reducedMotion, testFrozen, view, suspended, disposed, contextLost }),
-      setInputEnabled: (enabled: boolean) => { controls.enabled = enabled; },
+      state: () => ({ time: worldTime, paused: paused(), reducedMotion, testFrozen, view, suspended, disposed, contextLost, heldKeys: [...heldKeys].sort() }),
+      setInputEnabled: (enabled: boolean) => { controls.enabled = enabled; if (!enabled) clearHeldKeys(); },
       view: (position: [number, number, number], target: [number, number, number]) => {
         placeCamera(new THREE.Vector3(...position), new THREE.Vector3(...target));
         markExploring();

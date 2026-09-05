@@ -4,45 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#e8e8e5" />
-    <meta name="description" content="A little world inside a familiar controller. Explore a handcrafted, living 3D miniature." />
-    <title>Tiny people — A world within</title>
+    <meta name="description" content="Explore a living 3D miniature inside a familiar controller." />
+    <title>Tiny people</title>
     <link rel="icon" href="data:," />
   </head>
   <body>
-    <main id="app">
-      <div id="scene" aria-label="Interactive 3D miniature of a charcoal and coral controller"></div>
-      <header class="masthead">
-        <a class="wordmark" href="./" aria-label="Tiny people home"><span class="brand-dot"></span>tiny people<span class="wordmark-period">.</span></a>
-        <span class="edition">SMALL WORLDS / NO. 001</span>
-      </header>
-      <section class="intro" aria-labelledby="scene-title">
-        <p class="eyebrow">AN EVERYDAY ESCAPE</p>
-        <h1 id="scene-title">A world<br />within.</h1>
-        <p class="description">A familiar object.<br />An entirely different perspective.</p>
-      </section>
-      <footer class="toolbar">
-        <div class="exploration-panel">
-          <nav class="view-controls" aria-label="Explore the neighborhoods">
-            <button type="button" data-view="overview" aria-pressed="true">Overview</button>
-            <button type="button" data-view="cafe" aria-pressed="false">Café</button>
-            <button type="button" data-view="courtyard" aria-pressed="false">Courtyard</button>
-            <button type="button" data-view="homes" aria-pressed="false">Circuit homes</button>
-          </nav>
-          <p id="gesture-help">Drag to orbit · Scroll to zoom</p>
-        </div>
-        <div class="playback-panel">
-          <div class="view-caption"><span id="view-status">The controller</span><span id="motion-status" role="status">Life in motion</span></div>
-          <div class="actions">
-            <div class="zoom-controls" role="group" aria-label="Zoom">
-              <button id="zoom-out" class="icon-button" type="button" aria-label="Zoom out" title="Zoom out (−)">−</button>
-              <button id="zoom-in" class="icon-button" type="button" aria-label="Zoom in" title="Zoom in (+)">+</button>
-            </div>
-            <button id="pause-life" type="button" aria-pressed="false">Pause life</button>
-            <button id="reset-view" type="button" aria-label="Reset view">Reset view</button>
-          </div>
-        </div>
-      </footer>
-      <p id="keyboard-help" class="sr-only">Arrow keys orbit · + / − zoom · R resets · Space pauses life · Tab moves to controls</p>
+    <main id="app" aria-label="Living controller miniature">
+      <div id="scene"></div>
+      <p id="keyboard-help" class="sr-only">Hold W, A, S or D to pan. Arrow keys orbit. Plus and minus zoom. R resets the view. Space pauses or resumes life. Drag to orbit or pinch to zoom.</p>
       <div id="error" class="error" role="alert" hidden></div>
     </main>
     <script type="module" src="/src/main.ts"></script>

@@ -1,5 +1,7 @@
 # Devlog Summary
 
+- 2026-09-05: **The scene now shows only the model, with held-key WASD panning** — removed page UI and all textual mesh markings; centered the controller using its projected bounds. Real input checks prove equal camera/target translation, normalized diagonals, frame-time integration and reliable key release through focus/lifecycle changes. Desktop is now the supported target; previously completed mobile work remains historical.
+
 - 2026-09-05: **The miniature is ready to explore with mouse, touch or keyboard** — calibrated the HDR charcoal/salmon palette and procedural grain; added neighborhood views, readable overlays, pause/resume, live reduced-motion handling and compact landscape layouts. Expanded browser coverage exposed and repaired stale GPU disposal listeners after context restoration. Final rendering remains 528 calls, with a bounded local average of 16.67ms.
 
 - 2026-09-05: **Twenty-six residents now live on both controller decks** — added three inhabited areas, a supported ramp, nine walkers on seven routes and seated/serving/watering activity. Source geometry and deliberate defect mutations now gate route, prop, shoe and seat contact. The updated HDR reference supersedes the original pale palette; final controller material calibration remains phase three.

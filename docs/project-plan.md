@@ -55,17 +55,17 @@ Images, screenshots, output, dependencies, caches, temporary files, and scratch 
 
 ## Phase 5 — Unobstructed scene and camera movement
 
-Status: active in the separate implementer task.
+Status: accepted, integrated, and verified in the original checkout.
 
-- [ ] Remove all visible page copy, UI, and decorative 3D lettering from the normal view so the model is the sole focus.
-- [ ] Recenter the camera for the unobstructed scene across representative desktop window sizes.
-- [ ] Implement smooth camera-relative panning from real held WASD input, moving camera and target together with correct opposing keys, normalized diagonals, and release/blur handling.
-- [ ] Preserve mouse exploration, keyboard access, reduced-motion behavior, and graphics failure/recovery handling.
-- [ ] Update browser gates to verify the revised visible scene and actual input behavior without retaining obsolete UI assumptions; obtain manager acceptance.
+- [x] Remove all visible page copy, UI, and decorative 3D lettering from the normal view so the model is the sole focus.
+- [x] Recenter the camera for the unobstructed scene across representative desktop window sizes.
+- [x] Implement smooth camera-relative panning from real held WASD input, moving camera and target together with correct opposing keys, normalized diagonals, and release/blur handling.
+- [x] Preserve mouse exploration, keyboard access, reduced-motion behavior, and graphics failure/recovery handling.
+- [x] Update browser gates to verify the revised visible scene and actual input behavior without retaining obsolete UI assumptions; obtain manager acceptance.
 
 ## Phase 6 — More natural residents and plants
 
-Status: pending phase 5 acceptance.
+Status: active in the separate implementer task after phase 5 acceptance.
 
 - [ ] Give residents natural anatomy and individualized clothing, hair, and skin while preserving miniature scale and readable variation.
 - [ ] Refine articulation and daily activities with convincing poses, walking, object handling, and supported body contact.
@@ -87,7 +87,7 @@ Status: pending phase 6 acceptance.
 
 The reference and exploration-only direction are confirmed by the user.
 Historical phases 1–4 remain accepted and complete with implementer task `01a072cb-a812-77d2-a5b3-8ec24db5aa25`, worktree `C:/Users/38909/.codex/worktrees/dead/tiny_people`.
-The user's revision requests the model alone, smooth WASD panning, and more realistic people and plants on desktop; mobile support is outside the current scope. Phase 5 is active in the same implementer task; phases 6 and 7 are pending. The manager has a new active goal for this revision. The user has authorized frequent early commits and remote pushes; one Git delivery owner performs them from the original checkout.
+The user's revision requests the model alone, smooth WASD panning, and more realistic people and plants on desktop; mobile support is outside the current scope. Phase 5 is accepted, integrated, and locally verified; phase 6 is active in the same implementer task, and phase 7 is pending. The manager has a new active goal for this revision. The user has authorized frequent early commits and remote pushes; one Git delivery owner performs them from the original checkout.
 Phase 1 passed build/typecheck, audit, seven browser views, independent review, and manager visual inspection after repairing the hidden PCB and mobile framing.
 
 Phase 2 passed build, audit, seven-route and stationary-contact checks, slope/seating geometry checks with defect controls, 14-view browser review, moving-world camera negative controls, and independent recheck of all contact findings. The scene has 26 residents and remained near 60 fps in bounded local headless checks.
@@ -95,3 +95,7 @@ Phase 2 passed build, audit, seven-route and stationary-contact checks, slope/se
 Phase 3 passed final HDR palette review, build/typecheck, audit, route and resident geometry gates, 14-view camera/motion checks, 11-group exploration checks, and independent production-flow review. The final charcoal/salmon materials, visible keyboard guidance, touch layouts, reduced motion, graphics recovery and lifecycle behavior are accepted. Actual history navigation returned with persisted:false; synthetic persisted-event survival was separately verified.
 
 Phase 4 integrated all 25 accepted reusable files into the original checkout with matching hashes; the production build also matched byte-for-byte. Original-checkout build, audit, route, resident, 14-view browser and 11-group exploration gates passed. Independent production validation passed 11 captures and rendered pause/resume, presets, keyboard, zoom, reset and compact-landscape flows. Final source/secret/size/ignore checks passed; obsolete task output and CLI scratch cache were removed, final evidence was retained ignored, and all three final test browser process trees and workspace server candidates were absent. The separate implementer and manager completed their original delivery goals before this revision began.
+
+Phase 5 removed the normal-view UI and scene lettering, recentered desktop framing, and added smooth held WASD camera-relative panning with camera/target, diagonal, opposing-key, and focus-release checks. The manager accepted the exact frozen source and updated desktop browser evidence before phase 6 began; integration uses the preserved snapshot so concurrent realism work cannot alter its reviewed input. Public pushing remains paused by automatic approval review pending specific user approval; verified local commits continue.
+
+Original-checkout phase 5 validation passed build/typecheck, audit, route and resident gates, 13 exploration groups with 18 measured translations, and all 17 browser captures including actual production panning. A one-pixel, one-level GPU readback difference exposed an overly exact PNG comparison; the independently reviewed correction requires both a maximum channel difference of one and no more than 0.001% changed pixels, while real panning must exceed that bound and independent camera/target checks remain exact. The reported difference, boundary controls, real-pan negative control, and final comparison captures are retained under ignored output for phase 6 review.

@@ -6,9 +6,11 @@ The authoritative color reference was replaced on 2026-09-05 with an HDR-adjuste
 
 All production visuals must be reproducible from source without ignored raster references, external fonts or downloaded models.
 
-The current revision targets desktop. Mobile support is not required; retain existing responsive behavior without adding mobile-specific implementation or acceptance work.
+The 2026-09-05 model-only revision supersedes the original presentation UI: a healthy scene shows only the full-viewport miniature, with no visible words, labels, numbers, buttons or overlays. Remove textual markings from the 3D device and buildings too. Keep nonvisual accessibility metadata; a concise diagnostic may appear only when graphics cannot render. Physical control shapes and pictograms may remain.
 
-Use Y up, negative Z toward the shoulder, and negative X toward the rail. Keep the controller silhouette and X/A/B/Y layout recognizable as the miniature community develops.
+The user subsequently limited support to desktop. Preserve ordinary desktop resizing and harmless existing responsive defaults, but do not require or expand dedicated mobile/touch implementation, polishing or validation.
+
+Use Y up, negative Z toward the shoulder, and negative X toward the rail. Keep the controller silhouette and four-button diamond recognizable. WASD translates the camera and its target together in the controller's horizontal plane, relative to the current viewing direction. Instructions belong in the README and nonvisual accessibility description.
 
 Keep images, task output, temporary files, scratch work, dependencies and build products ignored. Preserve the original local reference.
 

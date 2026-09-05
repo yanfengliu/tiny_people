@@ -1,5 +1,19 @@
 # Defect register
 
+## Model-only revision must remove scene lettering as well as page copy
+
+**Requested change:** The user asked to remove all text and show only the 3D model, with WASD panning.
+
+**Investigation and cause:** The previous presentation deliberately included a masthead, headline, toolbars, status copy and keyboard help. Text also existed as mesh geometry: face-button and rail labels, a circuit-board number and house-number tallies. Hiding HTML alone would leave those markings visible.
+
+**Correction and check:** Healthy markup now contains only the full-viewport canvas and nonvisual accessibility metadata; graphics diagnostics appear only when rendering fails. All textual mesh markings and the unused glyph helper were removed. Browser checks inspect ordinary, focused, paused and panned views for visible page text, with native controller/circuit close-ups required to verify mesh text removal. The earlier visible-button assertions are superseded by this requirement.
+
+## WASD must pan the view rather than rotate or dolly it
+
+**Requested change:** Hold WASD to move across the miniature without needing to focus the canvas first.
+
+**Correction and check:** Held keys are sampled once per frame; the camera and target receive the same horizontal translation based on projected camera direction, viewing distance and elapsed frame time. Diagonals normalize to cardinal speed. Real keyboard checks compare camera and target deltas, offset/distance preservation, directions after orbit, opposite keys, release, repeated events, differing frame cadences and lifecycle cancellation. Camera tests freeze resident time separately, and production captures prove visible movement while resident life is paused.
+
 ## Graphics restoration retained stale GPU deletion listeners
 
 **Reported symptom:** The expanded browser check restored the scene successfully, then recorded 257 WebGL invalid-operation warnings when the restored scene was disposed.
@@ -12,13 +26,13 @@
 
 **Reported symptom:** The earlier 520px minimum scene height could push controls outside a 375px-tall phone viewport. Unbacked labels could also disappear over dark geometry during orbit.
 
-**Correction and check:** The canvas now fills `100svh` without a minimum height. Compact landscape layouts retain all eight 44px controls, while translucent light panels preserve text contrast and the introductory headline recedes during exploration. `npm run check:exploration` checks viewport containment, hit targets and actual touch orbit/pinch at 390×844, 844×390 and 667×375. The saved captures still require visual composition review.
+**Earlier correction:** Phase three removed the minimum height and retained eight 44px controls on readable panels. Phase five removed those controls and fitted the centered controller bounds into the available canvas. A later user instruction limited support to desktop, so dedicated phone/touch gates are no longer required. Desktop resizing remains checked, and prior mobile evidence remains historical.
 
 ## Test freeze must not establish visitor pause behavior
 
 **Reported symptom:** The camera harness needs a frozen world, but that same hook could falsely pass a missing pause or reduced-motion feature.
 
-**Correction and check:** Visitor pause, media preference and test freeze are separate state. The exploration gate starts fresh normal/reduced-motion browser contexts and rejects a frozen test clock while proving UI pause, keyboard pause, deliberate resume and live preference changes. Camera controls must remain usable while resident time and poses stay unchanged.
+**Correction and check:** Visitor pause, media preference and test freeze are separate state. The exploration gate starts fresh normal/reduced-motion browser contexts and rejects a frozen test clock while proving keyboard pause, deliberate resume and live preference changes. Camera controls must remain usable while resident time and poses stay unchanged. The former pause button was removed for the model-only revision.
 
 ## History return must preserve cached scene resources
 
@@ -62,4 +76,4 @@
 
 **Investigation and cause:** A fixed camera-distance multiplier ignored the narrower horizontal field of view of the portrait viewport.
 
-**Correction and check:** Narrow framing now uses camera aspect ratio and resets at the mobile breakpoint. The browser check captures the 390×844 reset view and checks canvas dimensions and page overflow. Acceptance must also visually inspect full silhouette clearance in that capture; DOM overflow alone cannot detect a model clipped inside WebGL.
+**Earlier correction:** The model-only revision fits controller/community bounds against both dimensions of the camera frustum and centers the overview. Portrait framing was corrected and inspected before the user removed mobile support from scope. Current browser checks cover desktop resizing; acceptance still requires native silhouette inspection because DOM overflow cannot detect a model clipped inside WebGL.
