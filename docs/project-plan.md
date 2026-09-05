@@ -65,7 +65,7 @@ Status: accepted, integrated, and verified in the original checkout.
 
 ## Phase 6 — More natural residents and plants
 
-Status: accepted; original-checkout integration verification is in progress.
+Status: accepted, integrated, and verified in the original checkout.
 
 - [x] Give residents natural anatomy and individualized clothing, hair, and skin while preserving miniature scale and readable variation.
 - [x] Refine articulation and daily activities with convincing poses, walking, object handling, and supported body contact.
@@ -75,19 +75,19 @@ Status: accepted; original-checkout integration verification is in progress.
 
 ## Phase 7 — Revision acceptance and delivery
 
-Status: active for final integrated verification, review, and delivery.
+Status: accepted and complete for local scene delivery.
 
-- [ ] Independently review the exact revision and rendered behavior, resolve material findings, and rerun affected checks.
-- [ ] Integrate the accepted revision into the original checkout while preserving unrelated work and the local reference.
-- [ ] Pass combined build, geometry, input, and browser checks against the integrated result, including representative close, wide, and desktop window views.
-- [ ] Verify source hygiene, update useful documentation, remove obsolete task output, and stop owned browser/server processes.
-- [ ] Record all revision phases accepted and complete the implementer and manager goals with final run instructions.
+- [x] Independently review the exact revision and rendered behavior, resolve material findings, and rerun affected checks.
+- [x] Integrate the accepted revision into the original checkout while preserving unrelated work and the local reference.
+- [x] Pass combined build, geometry, input, and browser checks against the integrated result, including representative close, wide, and desktop window views.
+- [x] Verify source hygiene, update useful documentation, remove obsolete task output, and stop owned browser/server processes.
+- [x] Record all revision phases accepted and hand off final run instructions for manager local goal closeout.
 
 ## Current status
 
 The reference and exploration-only direction are confirmed by the user.
 Historical phases 1–4 remain accepted and complete with implementer task `01a072cb-a812-77d2-a5b3-8ec24db5aa25`, worktree `C:/Users/38909/.codex/worktrees/dead/tiny_people`.
-The user's revision requests the model alone, smooth WASD panning, and more realistic people and plants on desktop; mobile support is outside the current scope. Phase 5 is accepted, integrated, and locally verified; phase 6 is accepted and being integrated, and phase 7 is active for final verification and delivery. The manager has a new active goal for this revision. The user has authorized frequent early commits and remote pushes; one Git delivery owner performs them from the original checkout.
+The user's revision requests the model alone, smooth WASD panning, and more realistic people and plants on desktop; mobile support is outside the current scope. Phase 5 is accepted, integrated, and locally verified; phases 6 and 7 are also accepted and complete locally. The manager has accepted the local result and is closing out the revision goal. The user has authorized frequent early commits and remote pushes; one Git delivery owner performs them from the original checkout.
 Phase 1 passed build/typecheck, audit, seven browser views, independent review, and manager visual inspection after repairing the hidden PCB and mobile framing.
 
 Phase 2 passed build, audit, seven-route and stationary-contact checks, slope/seating geometry checks with defect controls, 14-view browser review, moving-world camera negative controls, and independent recheck of all contact findings. The scene has 26 residents and remained near 60 fps in bounded local headless checks.
@@ -100,4 +100,10 @@ Phase 5 removed the normal-view UI and scene lettering, recentered desktop frami
 
 Original-checkout phase 5 validation passed build/typecheck, audit, route and resident gates, 13 exploration groups with 18 measured translations, and all 17 browser captures including actual production panning. A one-pixel, one-level GPU readback difference exposed an overly exact PNG comparison; the independently reviewed correction requires both a maximum channel difference of one and no more than 0.001% changed pixels, while real panning must exceed that bound and independent camera/target checks remain exact. The reported difference, boundary controls, real-pan negative control, and final comparison captures are retained under ignored output for phase 6 review.
 
-Phase 6 was accepted at the exact frozen source after independent runtime/harness review and 13 native close/wide renders. It retains the controller, HDR palette, desktop-only presentation, 26 residents and authored routes while refining anatomy, clothing, hair, held-object activities, watering contact and varied botanical geometry. The final increment is being integrated from its immutable snapshot; phase 7 owns the combined checks and final closeout.
+Phase 6 was accepted at the exact frozen source after independent runtime/harness review and 13 native close/wide renders. It retains the controller, HDR palette, desktop-only presentation, 26 residents and authored routes while refining anatomy, clothing, hair, held-object activities, watering contact and varied botanical geometry. The final increment was integrated from its immutable snapshot, and phase 7 completed the combined checks and local acceptance.
+
+Local scene delivery is complete at verified implementation commit `4979542f7f81fffba97a5d0f93473d940ecd32a5`. The original checkout passed build/typecheck, dependency audit with zero vulnerabilities, route, plant and resident geometry gates, 17 browser views including actual production controls, and 13 exploration groups with 18 measured translations. Independent integrated-source review and native inspection of the final rendered views found no material issues. The manager has accepted the local result; final goal-tool closeout follows this documentation handoff.
+
+Final cleanup removed 26 obsolete task artifacts while preserving the local reference, source, dependencies, build, frozen handoff, comparison evidence and 36 current captures. Task-owned browsers and servers stopped; a later reuse of one process ID by an unrelated browser was identified from creation times and left untouched. Final realism images and manifests are retained in ignored `output/revision/final-realism/`; root validation logs, source/index manifests, cleanup proof and the delivery report are in ignored `output/revision/final-checks/`. Run `npm run dev` and use the desktop controls documented in `README.md`.
+
+Publication is separate from the completed local scene delivery. No push has been performed by this task. Automatic approval review rejected the attempted public push to `https://github.com/yanfengliu/tiny_people.git` because it required specific approval for public disclosure of the source and documentation. That publication step remains blocked pending specific user approval; no retry, force-push, alternate write path or documentation migration is part of this closeout.
