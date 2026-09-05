@@ -13,6 +13,7 @@ const headings = [0, Math.PI / 2, Math.PI, -.67];
 const matrix = new THREE.Matrix4();
 const point = new THREE.Vector3();
 let vite, residents;
+const ownedGroups = [];
 
 function pose(id, overrides = {}) {
   return { id, x: 0, y: 0, z: 0, yaw: 0, walkPhase: 0, walking: false, seated: false, activity: 'relax', time: 0, ...overrides };
@@ -28,25 +29,85 @@ function vertices(mesh, index, visit) {
 }
 
 function assertFiniteCapacity() {
-  assert.equal(residents.group.children.length, 4, 'Residents should share four rendering batches.');
   for (const mesh of residents.group.children) {
-    assert.ok(mesh.count <= mesh.instanceMatrix.count, `${mesh.name} exceeds its instance capacity.`);
+    assert.ok(mesh.count >= 0 && mesh.count <= mesh.instanceMatrix.count, `${mesh.name} exceeds its instance capacity.`);
     assert.equal(mesh.frustumCulled, false, `${mesh.name} must not use stale bounds for moving people.`);
+    assert.equal(mesh.boundingBox, null, `${mesh.name} retained an obsolete picking box.`);
+    assert.equal(mesh.boundingSphere, null, `${mesh.name} retained an obsolete picking sphere.`);
     for (const value of mesh.instanceMatrix.array) assert.ok(Number.isFinite(value), `${mesh.name} has a nonfinite transform.`);
+    for (const value of mesh.instanceColor?.array ?? []) assert.ok(Number.isFinite(value), `${mesh.name} has a nonfinite color.`);
   }
 }
 
+function partMesh(ref) {
+  const mesh = residents.group.getObjectByName(ref.batch);
+  assert.ok(mesh?.isInstancedMesh && ref.index < mesh.count, `Missing rendered part ${JSON.stringify(ref)}.`);
+  return mesh;
+}
+
+function partBounds(ref) {
+  const bounds = new THREE.Box3();
+  vertices(partMesh(ref), ref.index, vertex => bounds.expandByPoint(vertex));
+  return bounds;
+}
+
+// Compare real hand vertices to real prop triangles; shared virtual grip anchors cannot pass this check.
+function triangles(refs) {
+  const result = [];
+  for (const ref of refs) {
+    const mesh = partMesh(ref), positions = mesh.geometry.attributes.position, indices = mesh.geometry.index;
+    const transform = new THREE.Matrix4(); mesh.getMatrixAt(ref.index, transform);
+    const length = indices?.count ?? positions.count;
+    for (let i = 0; i < length; i += 3) {
+      const corners = [0, 1, 2].map(offset => new THREE.Vector3().fromBufferAttribute(positions, indices ? indices.getX(i + offset) : i + offset).applyMatrix4(transform));
+      const triangle = new THREE.Triangle(...corners);
+      if (triangle.getArea() > 1e-13) result.push(triangle);
+    }
+  }
+  assert.ok(result.length > 0, 'Contact checks require rendered triangles.');
+  return result;
+}
+
+function surfaceDistance(ref, surfaces) {
+  let distanceSquared = Infinity;
+  const closest = new THREE.Vector3();
+  vertices(partMesh(ref), ref.index, vertex => {
+    for (const triangle of surfaces) {
+      triangle.closestPointToPoint(vertex, closest);
+      distanceSquared = Math.min(distanceSquared, vertex.distanceToSquared(closest));
+    }
+  });
+  return Math.sqrt(distanceSquared);
+}
+
+function assertHandContacts(record) {
+  assert.equal(record.hands.length, 2, 'Held activities need two actual rendered hands.');
+  // Watering hands grip the three handle pieces, rather than merely intersecting the body of the can.
+  const surfaces = triangles(record.heldKind === 'water' ? record.held.slice(3) : record.held);
+  const distances = record.hands.map(hand => surfaceDistance(hand, surfaces));
+  for (const distance of distances) assert.ok(distance <= .004, `${record.heldKind} hand loses actual prop contact: ${distance}.`);
+  return Math.max(...distances);
+}
+
 try {
-  vite = await createServer({ server: { middlewareMode: true, hmr: false } });
+  vite = await createServer({ server: { middlewareMode: true, hmr: { port: 0 } } });
   const { createResidents } = await vite.ssrLoadModule('/src/scene/residents.ts');
   residents = createResidents(26);
+  ownedGroups.push(residents.group);
+  const anatomyMaterials = ['resident-clothes', 'resident-skin', 'resident-hair', 'resident-shoes'].map(name => {
+    const mesh = residents.group.getObjectByName(name);
+    assert.ok(mesh?.isInstancedMesh, `Missing anatomy batch ${name}.`);
+    return mesh.material;
+  });
+  assert.equal(new Set(anatomyMaterials).size, 4, 'Skin, fabric, hair and shoes must use distinct materials.');
+  assert.equal(new Set(anatomyMaterials.map(material => material.roughness)).size, 4, 'Anatomy surfaces must have distinct roughness responses.');
   const shoes = residents.group.getObjectByName('resident-shoes');
   const limbs = residents.group.getObjectByName('resident-limbs');
   assert.ok(shoes?.isInstancedMesh && limbs?.isInstancedMesh, 'Resident shoe and limb geometry must be present.');
   shoes.geometry.computeBoundingBox();
   const soleY = shoes.geometry.boundingBox.min.y;
   const shoeVertices = shoes.geometry.attributes.position;
-  let soleChecks = 0, maximumPlaneSpread = 0, maximumLift = 0, plantedSamples = 0, liftedSamples = 0;
+  let soleChecks = 0, shoeChecks = 0, maximumPlaneSpread = 0, maximumLift = 0, plantedSamples = 0, liftedSamples = 0, minimumShoeClearance = Infinity;
 
   for (const [groundSlopeX, groundSlopeZ] of slopes) for (const yaw of headings) for (let sample = 0; sample < 16; sample++) {
     const floor = { x: 1.2, y: .97, z: 3.4 };
@@ -59,10 +120,12 @@ try {
       shoes.getMatrixAt(shoe, matrix);
       let low = Infinity, high = -Infinity, soleVertices = 0;
       for (let vertex = 0; vertex < shoeVertices.count; vertex++) {
-        if (Math.abs(shoeVertices.getY(vertex) - soleY) > tolerance) continue;
         point.fromBufferAttribute(shoeVertices, vertex).applyMatrix4(matrix);
         const plane = floor.y + groundSlopeX * (point.x - floor.x) + groundSlopeZ * (point.z - floor.z);
         const clearance = point.y - plane;
+        shoeChecks++; minimumShoeClearance = Math.min(minimumShoeClearance, clearance);
+        assert.ok(clearance >= -tolerance, `Shoe ${shoe} toe/heel/body penetrates its support plane by ${-clearance}.`);
+        if (Math.abs(shoeVertices.getY(vertex) - soleY) > tolerance) continue;
         low = Math.min(low, clearance); high = Math.max(high, clearance);
         soleChecks++; soleVertices++;
       }
@@ -78,16 +141,16 @@ try {
   }
   assert.ok(plantedSamples > 0 && liftedSamples > 0, 'The gait check must observe both planted and lifted feet.');
 
-  // With no held props, limb order is left thigh/shin/upper arm/forearm, then right.
+  // With no held props, fabric limb order is left thigh/shin/sleeve, then right; exposed arms use the skin batch.
   residents.update(Array.from({ length: 7 }, (_, id) => pose(id, { seated: true, activity: 'talk' })));
   function assertSeatClearance() {
     let minimumThighY = Infinity, minimumShinZ = Infinity;
     for (let resident = 0; resident < 7; resident++) for (let side = 0; side < 2; side++) {
-      vertices(limbs, resident * 8 + side * 4, vertex => {
+      vertices(limbs, resident * 6 + side * 3, vertex => {
         minimumThighY = Math.min(minimumThighY, vertex.y);
         assert.ok(vertex.y >= seatSurface - tolerance, `Seated thigh ${resident}/${side} enters the .135-high bench: ${vertex.y}.`);
       });
-      vertices(limbs, resident * 8 + side * 4 + 1, vertex => {
+      vertices(limbs, resident * 6 + side * 3 + 1, vertex => {
         minimumShinZ = Math.min(minimumShinZ, vertex.z);
         assert.ok(vertex.z > seatFront, `Seated shin ${resident}/${side} enters the bench front at z=.074: ${vertex.z}.`);
       });
@@ -121,23 +184,113 @@ try {
   } finally { limbs.setMatrixAt(0, originalThigh); }
   assertSeatClearance();
 
+  const proportions = [];
+  for (let id = 0; id < 7; id++) {
+    residents.update([pose(id)]);
+    const body = new THREE.Box3(), record = residents.group.userData.parts[0];
+    for (const mesh of residents.group.children) for (let index = 0; index < mesh.count; index++) vertices(mesh, index, vertex => body.expandByPoint(vertex));
+    const head = partBounds(record.head), crown = head.clone();
+    for (const name of ['resident-hair', 'resident-hair-details']) {
+      const mesh = residents.group.getObjectByName(name);
+      for (let index = 0; index < mesh.count; index++) vertices(mesh, index, vertex => crown.expandByPoint(vertex));
+    }
+    const height = body.max.y - body.min.y, headHeight = crown.max.y - head.min.y, ratio = height / headHeight;
+    assert.ok(height >= .32 && height <= .42, `Resident ${id} actual standing height ${height} leaves miniature scale.`);
+    assert.ok(ratio >= 6.5 && ratio <= 7, `Resident ${id} actual crown-to-chin proportion is ${ratio} heads.`);
+    proportions.push({ id, height, headHeight, ratio });
+  }
+
+  // A ray from below the actual closed ceramic must hit its underside, not an interior or an absent cap.
+  const cupBatch = residents.group.getObjectByName('resident-cups');
+  const cupSurface = new THREE.Mesh(cupBatch.geometry, cupBatch.material);
+  const bottomHits = new THREE.Raycaster(new THREE.Vector3(0, -2, 0), new THREE.Vector3(0, 1, 0)).intersectObject(cupSurface);
+  assert.ok(bottomHits.length > 0 && Math.abs(bottomHits[0].point.y + 1) < tolerance, 'Cup underside must be closed with a downward-facing bottom.');
+
+  const contactDistances = { book: 0, cup: 0, water: 0 };
+  let contactSamples = 0;
+  for (const [id, activity, seated] of [[15, 'relax', true], [23, 'relax', true], [12, 'talk', true], [16, 'talk', true], [17, 'water', false], [20, 'water', false]]) {
+    for (let sample = 0; sample < 12; sample++) {
+      residents.update([pose(id, { activity, seated, time: sample * .75, yaw: -.67, x: .37, y: .97, z: -.42 })]);
+      const record = residents.group.userData.parts[0];
+      assert.ok(record.heldKind, `Activity resident ${id} must hold a rendered object.`);
+      contactDistances[record.heldKind] = Math.max(contactDistances[record.heldKind], assertHandContacts(record));
+      contactSamples++;
+    }
+  }
+
+  residents.update([pose(15, { seated: true, activity: 'relax' })]);
+  const reader = residents.group.userData.parts[0];
+  const originalBook = reader.held.map(ref => { const transform = new THREE.Matrix4(); partMesh(ref).getMatrixAt(ref.index, transform); return transform; });
+  try {
+    reader.held.forEach((ref, index) => { const moved = originalBook[index].clone(); moved.elements[12] += .1; partMesh(ref).setMatrixAt(ref.index, moved); });
+    assert.throws(() => assertHandContacts(reader), /loses actual prop contact/, 'Positive control: a book shifted away from the hands must fail.');
+  } finally { reader.held.forEach((ref, index) => partMesh(ref).setMatrixAt(ref.index, originalBook[index])); }
+  assertHandContacts(reader);
+
+  let maximumMouthGap = 0, minimumCupTravel = Infinity;
+  for (const id of [12, 16]) {
+    residents.update([pose(id, { seated: true, activity: 'talk', time: 0 })]);
+    const lowered = partBounds(residents.group.userData.parts[0].held[0]).getCenter(new THREE.Vector3());
+    residents.update([pose(id, { seated: true, activity: 'talk', time: 4 - id * .13 })]);
+    const drinker = residents.group.userData.parts[0], gap = surfaceDistance(drinker.mouth, triangles(drinker.held));
+    const travel = lowered.distanceTo(partBounds(drinker.held[0]).getCenter(new THREE.Vector3()));
+    assert.ok(gap <= .004, `Drinking resident ${id} cup misses the actual lip surface by ${gap}.`);
+    assert.ok(travel >= .04, `Drinking resident ${id} never visibly lifts the cup: ${travel}.`);
+    maximumMouthGap = Math.max(maximumMouthGap, gap); minimumCupTravel = Math.min(minimumCupTravel, travel);
+  }
+
+  // Read the authored soil mesh itself as well as the supplied target; a detached, self-consistent target cannot pass.
+  const { createController } = await vite.ssrLoadModule('/src/scene/controller.ts');
+  const { createCommunity } = await vite.ssrLoadModule('/src/scene/community.ts');
+  const controller = createController(), community = createCommunity(controller);
+  ownedGroups.push(controller, community.group, community.scenery);
+  community.update(0); community.scenery.updateMatrixWorld(true);
+  const soils = [];
+  community.scenery.traverse(object => { if (object.name === 'recessed-soil') soils.push(object); });
+  let maximumWaterMiss = 0;
+  const waterTargets = [];
+  for (const authored of community.snapshot().filter(candidate => candidate.activity === 'water')) {
+    assert.ok(authored.waterTarget, `Authored watering resident ${authored.id} needs an actual soil target.`);
+    const target = new THREE.Vector3(...authored.waterTarget);
+    assert.ok(soils.some(soil => {
+      const bounds = new THREE.Box3().setFromObject(soil), center = bounds.getCenter(new THREE.Vector3());
+      return Math.abs(target.y - bounds.max.y) < tolerance && Math.hypot(target.x - center.x, target.z - center.z) < tolerance;
+    }), `Water target ${authored.id} is detached from all actual soil surfaces.`);
+    const cycle = Math.ceil(authored.id * 1.73 * .9) + 1;
+    const time = (cycle + 1 - 1e-5) / .9 - authored.id * 1.73;
+    residents.update([{ ...authored, time }]);
+    const record = residents.group.userData.parts[0];
+    assert.equal(record.waterDrops.length, 3, 'Watering must retain three restrained rendered droplets.');
+    const drop = record.waterDrops[0], transform = new THREE.Matrix4(); partMesh(drop).getMatrixAt(drop.index, transform);
+    const miss = new THREE.Vector3().setFromMatrixPosition(transform).distanceTo(target);
+    assert.ok(miss < .0001, `Resident ${authored.id} rendered stream misses actual soil by ${miss}.`);
+    maximumWaterMiss = Math.max(maximumWaterMiss, miss); waterTargets.push({ id: authored.id, target: target.toArray(), miss });
+  }
+  assert.equal(waterTargets.length, 2, 'Both authored watering activities must hit soil.');
+
   for (let sample = 0; sample < 32; sample++) {
     residents.update(Array.from({ length: 26 }, (_, id) => pose(id, { activity: 'water', time: sample * .2 })));
     assertFiniteCapacity();
   }
   const waterInstances = residents.group.children.reduce((sum, mesh) => sum + mesh.count, 0);
   assert.ok(waterInstances > 26 * 18, 'The watering check must include the held props and droplets.');
+  for (const activity of ['relax', 'talk']) for (let sample = 0; sample < 12; sample++) {
+    residents.update(Array.from({ length: 26 }, (_, index) => pose(activity === 'talk' ? 12 : index, { activity, seated: true, time: sample * .75 })));
+    assertFiniteCapacity();
+  }
   residents.update([]);
   for (const mesh of residents.group.children) assert.equal(mesh.count, 0, 'An empty update must hide old residents.');
   assert.throws(() => residents.update(Array.from({ length: 27 }, (_, id) => pose(id))), /capacity/);
-  console.log(`PASS residents: ${soleChecks} sole vertices; ${slopes.length} slopes, ${headings.length} headings, 16 gait phases; maximum plane spread ${maximumPlaneSpread.toExponential(2)}, lift ${maximumLift.toFixed(5)}.`);
+  console.log(`PASS residents: ${soleChecks} sole/${shoeChecks} total shoe vertices; ${slopes.length} slopes, ${headings.length} headings, 16 gait phases; maximum plane spread ${maximumPlaneSpread.toExponential(2)}, minimum clearance ${minimumShoeClearance.toExponential(2)}, lift ${maximumLift.toFixed(5)}.`);
   console.log(`PASS seats: 7 scales, minimum thigh y=${seatBounds.minimumThighY.toFixed(5)}, shin z=${seatBounds.minimumShinZ.toFixed(5)}; rejected-knee positive control failed as intended.`);
-  console.log(`PASS capacity: 26 watering residents across 32 frames, ${waterInstances} instances in 4 batches, finite transforms and empty/capacity checks.`);
+  console.log(`PASS proportions: ${JSON.stringify(proportions)}.`);
+  console.log(`PASS activities: ${contactSamples} actual hand/prop surface samples, maximum gaps ${JSON.stringify(contactDistances)}, rejected detached-book control; mouth gap ${maximumMouthGap.toFixed(6)}, cup travel ${minimumCupTravel.toFixed(6)}, closed cup underside.`);
+  console.log(`PASS watering: ${JSON.stringify(waterTargets)}; maximum soil miss ${maximumWaterMiss.toExponential(2)}.`);
+  console.log(`PASS capacity: 26 watering residents across 32 frames, ${waterInstances} instances; full book/cup batches across 24 frames; ${residents.group.children.length} batches/${new Set(residents.group.children.map(mesh => mesh.material)).size} materials, finite transforms and empty/capacity checks.`);
 } finally {
-  if (residents) {
-    const materials = new Set();
-    for (const mesh of residents.group.children) { mesh.geometry.dispose(); materials.add(mesh.material); }
-    for (const material of materials) material.dispose();
-  }
+  const geometries = new Set(), materials = new Set();
+  for (const group of ownedGroups) group.traverse(object => { if (object.isMesh) { geometries.add(object.geometry); for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material); } });
+  for (const geometry of geometries) geometry.dispose();
+  for (const material of materials) material.dispose();
   await vite?.close();
 }

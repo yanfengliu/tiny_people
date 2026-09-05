@@ -10,6 +10,8 @@ The 2026-09-05 model-only revision supersedes the original presentation UI: a he
 
 The user subsequently limited support to desktop. Preserve ordinary desktop resizing and harmless existing responsive defaults, but do not require or expand dedicated mobile/touch implementation, polishing or validation.
 
+Realism changes must retain the 26 residents, authored routes and furniture layout. Keep adult head/height proportions, readable limb mass, distinct skin/fabric/hair/shoe materials, thin botanical leaves and the accepted HDR palette. Check feet, seats, held objects and watering destinations against actual geometry. Judge improvements in matching camera/time renders as well as source checks; do not alter global exposure or controller layout to compensate for miniature geometry.
+
 Use Y up, negative Z toward the shoulder, and negative X toward the rail. Keep the controller silhouette and four-button diamond recognizable. WASD translates the camera and its target together in the controller's horizontal plane, relative to the current viewing direction. Instructions belong in the README and nonvisual accessibility description.
 
 Keep images, task output, temporary files, scratch work, dependencies and build products ignored. Preserve the original local reference.

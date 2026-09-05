@@ -108,8 +108,9 @@ Node 24.12.0 (`.nvmrc`): a version mismatch is not a code failure. Before any co
 - `npm run build` — typecheck, then the Vite production build into ignored `dist/`.
 - `npm run audit` — `npm audit --audit-level=moderate`; a dependency change re-runs it.
 - `npm run check:routes` — all seven routes against the static geometry: footprints, stationary placements and 240 seconds of actor-pair separation.
+- `npm run check:plants` — actual plant meshes across variant seeds 0–4 at two scales, including closed leaf/pot edges, finite attributes, shared materials and soil/root contact with a raised-root negative control.
 - `npm run check:residents` — shoe soles on slopes, seated clearance and instancing capacity, with its own positive control.
-- `npm run check:browser` and `npm run check:exploration` — headless Playwright runs driving real drag, wheel, touch and keyboard input; they need Chromium (`npx playwright install chromium`) and write their captures and SHA-256 manifests under ignored `output/`. The captures are the visual evidence: inspect them, because the interaction assertions alone establish neither geometry nor framing.
+- `npm run check:browser` and `npm run check:exploration` — headless Playwright runs driving real desktop drag, wheel and keyboard input; they need Chromium (`npx playwright install chromium`) and write their captures and SHA-256 manifests under ignored `output/`. The captures are the visual evidence: inspect them, because the interaction assertions alone establish neither geometry nor framing.
 
 ## Invariants & boundaries
 

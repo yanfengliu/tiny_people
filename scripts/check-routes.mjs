@@ -3,7 +3,8 @@
 import { createServer } from 'vite';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
-const vite=await createServer({server:{middlewareMode:true,hmr:false}});
+// Vite's SSR module channel still uses a websocket; own an ephemeral port.
+const vite=await createServer({server:{middlewareMode:true,hmr:{port:0}}});
 try {
   const {createController}=await vite.ssrLoadModule('/src/scene/controller.ts');
   const {createCommunity}=await vite.ssrLoadModule('/src/scene/community.ts');

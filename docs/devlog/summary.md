@@ -1,5 +1,7 @@
 # Devlog Summary
 
+- 2026-09-05: **Adults, foliage and activity contact now read at miniature scale** — replaced toy proportions and oval leaves with adult anatomy, distinct materials, three botanical forms, recessed soil and open pots. Added held books and sipping cups; watering lands on actual soil. Independent native review corrected sparse leaves, hip seams and a fern root gap. Final overview rendering uses 500 calls and 1,057,090 triangles, with a bounded 16.67ms average.
+
 - 2026-09-05: **The scene now shows only the model, with held-key WASD panning** — removed page UI and all textual mesh markings; centered the controller using its projected bounds. Real input checks prove equal camera/target translation, normalized diagonals, frame-time integration and reliable key release through focus/lifecycle changes. Desktop is now the supported target; previously completed mobile work remains historical.
 
 - 2026-09-05: **The miniature is ready to explore with mouse, touch or keyboard** — calibrated the HDR charcoal/salmon palette and procedural grain; added neighborhood views, readable overlays, pause/resume, live reduced-motion handling and compact landscape layouts. Expanded browser coverage exposed and repaired stale GPU disposal listeners after context restoration. Final rendering remains 528 calls, with a bounded local average of 16.67ms.

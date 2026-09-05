@@ -2,6 +2,8 @@
 
 A living browser miniature inspired by the supplied Joy-Con reference: 26 tiny residents share a button-side café, joystick courtyard and two homes among the circuitry of a charcoal-and-coral controller. The full-viewport scene contains only the model, with no visible interface or textual markings.
 
+Residents use adult proportions, tapered limbs, rounded shoes and separate fabric, skin and hair surfaces. Three plant forms combine thin curved leaves and branching stems with open pot rims and recessed granular soil. Their shapes and materials are generated locally from source.
+
 Desktop browsers are the supported target. The canvas follows desktop window resizing; dedicated mobile support and mobile validation are outside the current scope.
 
 ## Run locally
@@ -26,6 +28,7 @@ npm run typecheck
 npm run build
 npm run audit
 npm run check:routes
+npm run check:plants
 npm run check:residents
 npm run preview
 ```
@@ -36,7 +39,7 @@ Run `npm run check:exploration` for held-key WASD translation, keyboard pause, m
 
 Camera checks use frozen world time and independently observed camera transforms. A disabled-input check proves moving people cannot masquerade as working controls. Separate ordinary-time checks confirm walking, and the harness reports a bounded 150-frame local timing sample. Development-only scene inspection hooks are omitted from the production build.
 
-The route gate samples all seven routes against the actual static geometry at intervals no greater than .025 units, checks .085-radius footprints and 17 stationary body placements, and samples actor pairs over 240 seconds. It deliberately tests an off-device path, a path through the joystick, and a book moved into a seated pelvis. The resident gate checks transformed shoe soles on slopes and seated thigh/shin clearance, including a mutation of the old low-knee pose. These bounded checks complement visual review of motion and furniture contact.
+The route gate samples all seven routes against the actual static geometry at intervals no greater than .025 units, checks .085-radius footprints and 17 stationary body placements, and samples actor pairs over 240 seconds. It deliberately tests an off-device path, a path through the joystick, and a book moved into a seated pelvis. The resident gate checks every transformed shoe vertex on slopes, seated thigh/shin clearance, actual head proportions, hand-to-prop surfaces, cup lifting/closure and rendered watering drops against the authored soil. Low-knee and detached-book mutations must fail. The plant gate checks closed leaf/pot geometry, bounded footprints, compatible material batching, and root contact with soil, including a deliberately lifted root. These bounded checks complement visual review of motion and furniture contact.
 
 The production build goes to ignored `dist/`. The application uses Vite, TypeScript and Three.js; all geometry and materials are defined in source. No image, external font, model download, or runtime network service is required. The local npm cache lives in ignored `.npm/`.
 
@@ -45,7 +48,8 @@ The production build goes to ignored `dist/`. The application uses Vite, TypeScr
 - `src/scene/controller.ts`: device shell, face controls, coral rail and exposed PCB.
 - `src/scene/geometry.ts`: reusable geometry helpers.
 - `src/scene/community.ts`: café, courtyard, homes, ramp, routes and actual-geometry clearance checks.
-- `src/scene/residents.ts`: four instanced batches with walking and local activity poses.
+- `src/scene/residents.ts`: material-specific instanced batches with walking and local activity poses.
+- `src/scene/plants.ts`: broadleaf, herb and fern geometry, shared plant materials, pots and soil.
 - `src/scene/physical-audit.ts`: triangle and solid-volume checks that preserve hollow spaces.
 - `src/scene/environment.ts`: lighting, neutral surroundings and contact shadows.
 - `src/scene/materials.ts`: deterministic procedural plastic grain.

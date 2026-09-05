@@ -1,5 +1,17 @@
 # Defect register
 
+## Exact PNG bytes can mistake isolated raster quantization for motion
+
+**Reported symptom:** The original-checkout production release check failed after D was released, although independent camera/target checks passed. Decoding the two 1440×1000 images found exactly one changed channel at one pixel, differing by one 8-bit level.
+
+**Correction and check:** Production steady-frame comparisons require both a maximum channel difference of 1/255 and a changed-pixel fraction no greater than 0.001%. The original one-pixel difference passes; the actual before-pan versus held-D images fail with 384,744 changed pixels and a maximum channel difference of 247. Boundary controls reject 15 changed pixels at this resolution and a single two-level difference. Frozen reset and independent camera/target assertions remain exact. The same narrowly bounded comparator covers paused, released and modified-input production states.
+
+## Realistic proportions need readable mass and activity contact
+
+**Reported symptom:** Early realism renders improved head proportions and material separation, but very narrow limbs read as mannequins, thin foliage became sparse at ordinary viewing distance, and seated reading/serving gestures had empty hands. Native review also found watering droplets landing short of the courtyard pot.
+
+**Correction and check:** Retained adult head/height proportions while adding restrained limb and body breadth. Larger leaf blades stay within existing footprints and retain thin curved surfaces and botanical variety. Real rendered hand/prop surfaces verify book and cup grips, and watering targets derive from actual transformed soil meshes. Matching camera/time renders passed independent native review. Later review found protruding hip details and a fern root gap; the hip forms now sit within continuous trousers and root vertices enter the soil volume. A lifted-root mutation must fail. A real ray from beneath the cup also exposed its missing underside; the closed profile now passes that check. Source detail alone cannot establish realism.
+
 ## Model-only revision must remove scene lettering as well as page copy
 
 **Requested change:** The user asked to remove all text and show only the 3D model, with WASD panning.

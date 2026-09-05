@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { box, cylinder, line, solid } from './geometry';
 import { createResidents } from './residents';
+import { createPlant } from './plants';
 import type { ResidentPose } from './residents';
 import { intersectsMeshVolume } from './physical-audit';
 
@@ -16,8 +17,6 @@ const palette = {
   turquoise: new THREE.MeshStandardMaterial({ color: '#00a9bb', roughness: .6 }),
   wood: new THREE.MeshStandardMaterial({ color: '#b68b52', roughness: .9 }),
   dark: new THREE.MeshStandardMaterial({ color: '#34494c', roughness: .8 }),
-  leaf: new THREE.MeshStandardMaterial({ color: '#52aa69', roughness: .9 }),
-  leafLight: new THREE.MeshStandardMaterial({ color: '#8dbe64', roughness: .9 }),
   yellow: new THREE.MeshStandardMaterial({ color: '#f1bb43', roughness: .7 }),
   glass: new THREE.MeshStandardMaterial({ color: '#69c9d4', roughness: .25, metalness: .2 }),
 };
@@ -50,17 +49,8 @@ export function createCommunity(controller: THREE.Group) {
   const group = new THREE.Group(); group.name = 'tiny-community';
 
   function pole(x:number,y:number,z:number,height:number,color = palette.cream) { return cylinder(scenery,color,.012,height,x,y+height/2,z); }
-  function plant(x:number,y:number,z:number,large=false) {
-    const s = large ? 1.35 : 1;
-    cylinder(scenery,palette.coral,.062*s,.085*s,x,y+.042*s,z,.047*s);
-    cylinder(scenery,palette.dark,.047*s,.01,x,y+.088*s,z);
-    pole(x,y+.09*s,z,.15*s,palette.leaf);
-    for(let i=0;i<5;i++) {
-      const a = i*2.4;
-      const leaf = solid(new THREE.SphereGeometry(1,8,6),i%2 ? palette.leaf : palette.leafLight,scenery,x+Math.sin(a)*.045*s,y+(.14+i*.018)*s,z+Math.cos(a)*.045*s);
-      leaf.scale.set(.035*s,.062*s,.016*s); leaf.rotation.z = Math.sin(a)*.9;
-    }
-  }
+  const plants: THREE.Group[] = [];
+  function plant(x:number,y:number,z:number,large=false) { plants.push(createPlant(scenery,x,y,z,large,plants.length)); }
   function bench(x:number,y:number,z:number,yaw:number,length=.5) {
     const b = new THREE.Group(); b.position.set(x,y,z); b.rotation.y=yaw; scenery.add(b);
     for(const dz of [-.045,.005,.055]) box(b,palette.wood,[length,.025,.039],[0,.1225,dz],.004);
@@ -182,6 +172,14 @@ export function createCommunity(controller: THREE.Group) {
     [-1.15,4.76,Math.PI,false,'relax'],[-1.48,4.79,0,false,'water'],[1.14,4.79,Math.PI,false,'talk'],
     [.76,4.56,Math.PI/2,false,'talk'],[-.16,5.30,0,true,'relax'],[-.99,5.87,0,false,'serve'],[1.90,-2.56,-.8,false,'relax'],
   ];
+  // Watering lands on the authored soil meshes, including each pot's actual scale.
+  const waterTargets = new Map<number, [number,number,number]>();
+  for (const [residentId,plantIndex] of [[17,1],[20,3]]) {
+    const soil = plants[plantIndex].getObjectByName('recessed-soil');
+    if (!soil) throw new Error('A watering resident requires its plant soil surface.');
+    const bounds = new THREE.Box3().setFromObject(soil), center = bounds.getCenter(new THREE.Vector3());
+    waterTargets.set(residentId,[center.x,bounds.max.y,center.z]);
+  }
   function sampleRoute(route:Route,time:number,phase:number) {
     let u:number, yaw:number,walking=true;
     if(route.shuttle) {
@@ -200,7 +198,10 @@ export function createCommunity(controller: THREE.Group) {
   let poses:ResidentPose[]=[];
   function update(time:number) {
     poses=walkers.map(({route,phase},id)=>({...sampleRoute(routes[route],time,phase),id,walkPhase:time*5.6+id,seated:false,activity:'walk',time}));
-    stationary.forEach(([x,z,yaw,seated,activity],index)=>poses.push({id:index+walkers.length,x,y:surfaceAt(x,z)??-10,z,yaw,walking:false,walkPhase:0,seated,activity,time}));
+    stationary.forEach(([x,z,yaw,seated,activity],index)=> {
+      const id=index+walkers.length;
+      poses.push({id,x,y:surfaceAt(x,z)??-10,z,yaw,walking:false,walkPhase:0,seated,activity,time,waterTarget:waterTargets.get(id)});
+    });
     residents.update(poses);
   }
   function auditRoutes() {
