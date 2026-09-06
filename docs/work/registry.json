@@ -11,6 +11,10 @@
           "source": "tiny_people@7b4938d9e4bdc69b002c4a2affd78bc3f676b2a9:docs/project-plan.md"
         }
       ]
+    },
+    {
+      "id": 1,
+      "theme": "controller-life-expansion"
     }
   ]
 }

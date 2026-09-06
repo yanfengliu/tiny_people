@@ -10,7 +10,9 @@ The 2026-09-05 model-only revision supersedes the original presentation UI: a he
 
 The user subsequently limited support to desktop. Preserve ordinary desktop resizing and harmless existing responsive defaults, but do not require or expand dedicated mobile/touch implementation, polishing or validation.
 
-Realism changes must retain the 26 residents, authored routes and furniture layout. Keep adult head/height proportions, readable limb mass, distinct skin/fabric/hair/shoe materials, thin botanical leaves and the accepted HDR palette. Check feet, seats, held objects and watering destinations against actual geometry. Judge improvements in matching camera/time renders as well as source checks; do not alter global exposure or controller layout to compensate for miniature geometry.
+The accepted expansion authorizes three movable non-supporting controller parts: a hinged coral rail, shoulder housing with a bounded recess, and joystick inspection lift on an attached sleeve. Keep the inhabited face, PCB, ramp and furniture fixed, preserve the 26 stable resident IDs and existing routes, and audit any new social approach paths against actual geometry. Mechanisms must move reversibly in place with full-sweep clearance and valid support throughout. Keep adult head/height proportions, readable limb mass, distinct skin/fabric/hair/shoe materials, thin botanical leaves and the accepted HDR palette. Check feet, seats, held objects and watering destinations against actual geometry. Judge realism in matching camera/time renders as well as source checks; do not alter global exposure to compensate for miniature geometry.
+
+Autonomous social behavior uses deterministic traits for all 26 residents, authoritative model state and shared reservations upstream of the renderer. Explicit seek, advance and command history must preserve coherent state without teleportation; paired interactions require supported approaches, reciprocal participation, clear exits and single ownership of shared props. Keep mechanical progress, target and phase authoritative too, with occlusion-aware click/drag arbitration, nonvisual keyboard focus on physical parts, and preserved pause, reduced-motion and lifecycle behavior.
 
 Use Y up, negative Z toward the shoulder, and negative X toward the rail. Keep the controller silhouette and four-button diamond recognizable. WASD translates the camera and its target together in the controller's horizontal plane, relative to the current viewing direction. Instructions belong in the README and nonvisual accessibility description.
 
@@ -18,6 +20,6 @@ Keep images, task output, temporary files, scratch work, dependencies and build 
 
 Browser and localhost verification must run headlessly with task-owned processes and cleanup. Do not leave a server running unless the user asks.
 
-The manager owns the phased plan and acceptance in the original checkout's `docs/work/0_procedural-people-world/plan.md`. The implementer owns application source and scoped verification. Do not create a competing plan in this worktree.
+The manager owns the current phased plan and acceptance in the original checkout's `docs/work/1_controller-life-expansion/plan.md`; `docs/work/0_procedural-people-world/plan.md` preserves the accepted baseline. The implementer owns application source and scoped verification. Do not create a competing plan in this worktree.
 
 User authorization on 2026-09-05: "Commit often and commit early. You are always authorized to push to remote." One Git delivery owner commits verified changes and pushes from the original checkout to the configured intended remote. Use normal safe pushes; do not force-push or discard remote work.

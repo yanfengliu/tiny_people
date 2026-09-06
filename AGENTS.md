@@ -4,7 +4,7 @@
 
 A browser miniature: 26 tiny residents live in a charcoal-and-coral Joy-Con-style controller, sharing a button-side café, a joystick courtyard and two homes among its circuitry. Visitors orbit, zoom and pan; there is no game economy or objective system. Stack: Vite, TypeScript and Three.js, with every piece of geometry, lettering and material defined in `src/`; Node 24.12.0 is pinned in `.nvmrc` and dependencies are pinned exactly through `.npmrc`. The current target is desktop; mobile-specific work is a non-goal, and so is any runtime network service, external font, model download or raster reference in production visuals.
 
-Brief, ownership and phase record: `docs/work/0_procedural-people-world/plan.md`. The repo's own rules, including the colour reference and coordinate frame: [docs/policies/local-rules.md](docs/policies/local-rules.md). Defects the gates missed, with the check that now covers each: `docs/learning/defect-register.md`.
+Current expansion, ownership and phases 8–11: `docs/work/1_controller-life-expansion/plan.md`. Accepted baseline and historical phases 1–7: `docs/work/0_procedural-people-world/plan.md`. The repo's own rules, including the colour reference and coordinate frame: [docs/policies/local-rules.md](docs/policies/local-rules.md). Defects the gates missed, with the check that now covers each: `docs/learning/defect-register.md`.
 
 <!-- FLEET-CANON:BEGIN sha=0e86a31d8757 generated from ../fleet/FLEET.md by `npm run sync-canon` — do not edit inside this block; this repo's own rules go in docs/policies/local-rules.md -->
 ## Fleet constitution
