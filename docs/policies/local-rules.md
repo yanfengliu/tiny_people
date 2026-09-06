@@ -22,4 +22,4 @@ Browser and localhost verification must run headlessly with task-owned processes
 
 The manager owns the current phased plan and acceptance in the original checkout's `docs/work/1_controller-life-expansion/plan.md`; `docs/work/0_procedural-people-world/plan.md` preserves the accepted baseline. The implementer owns application source and scoped verification. Do not create a competing plan in this worktree.
 
-User authorization on 2026-09-05: "Commit often and commit early. You are always authorized to push to remote." One Git delivery owner commits verified changes and pushes from the original checkout to the configured intended remote. Use normal safe pushes; do not force-push or discard remote work.
+Commit verified changes early and often. One Git delivery owner commits verified changes and pushes from the original checkout to the configured intended remote. Use normal safe pushes; do not force-push or discard remote work.
