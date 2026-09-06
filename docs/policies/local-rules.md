@@ -6,7 +6,7 @@ The authoritative color reference was replaced on 2026-09-05 with an HDR-adjuste
 
 All production visuals must be reproducible from source without ignored raster references, external fonts or downloaded models.
 
-The 2026-09-05 model-only revision supersedes the original presentation UI: a healthy scene shows only the full-viewport miniature, with no visible words, labels, numbers, buttons or overlays. Remove textual markings from the 3D device and buildings too. Keep nonvisual accessibility metadata; a concise diagnostic may appear only when graphics cannot render. Physical control shapes and pictograms may remain.
+The model-only revision supersedes the original presentation UI: a healthy scene shows only the full-viewport miniature, with no visible page/UI words, labels, numbers, buttons or overlays. The user's later report that XYAB were missing authorizes a narrow exception for X/Y/A/B markings on the physical 3D face buttons: X at the top toward the shoulder, Y on the left, A on the right and B at the bottom. Other textual markings on the device and buildings remain absent. Keep nonvisual accessibility metadata; a concise diagnostic may appear only when graphics cannot render. Physical control shapes and pictograms may remain.
 
 The user subsequently limited support to desktop. Preserve ordinary desktop resizing and harmless existing responsive defaults, but do not require or expand dedicated mobile/touch implementation, polishing or validation.
 

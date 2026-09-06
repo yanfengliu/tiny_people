@@ -13,7 +13,7 @@ Expand the accepted desktop controller miniature so visitors can click controlle
 
 Included: discoverable controller interactions, safe mechanical motion and lifecycle behavior, material and geometry realism, and autonomous residents with stable state, individual tendencies and supported social interactions. The user selected in-place opening and autonomous residents. The accepted mechanisms are a hinged coral rail, a shoulder housing with a real bounded recess, and a joystick inspection lift on an attached sleeve.
 
-Keep the ordinary desktop view text-free and preserve mouse exploration, smooth camera-relative WASD panning, reduced-motion behavior and graphics recovery. The new movable non-supporting parts supersede the earlier rigid-layout restriction within that scope. The inhabited face, PCB, ramp and furniture remain fixed; existing routes and any audited social approach paths must preserve walking support and activity contact. Retain all 26 stable resident IDs and the recognizable controller form. Production assets remain reproducible from source. Mobile-specific work is outside scope.
+Keep the ordinary desktop page/UI text-free, with a narrow user-authorized exception for X/Y/A/B markings on the physical 3D face buttons: X at the top toward the shoulder, Y on the left, A on the right and B at the bottom. Other textual markings remain absent. Preserve mouse exploration, smooth camera-relative WASD panning, reduced-motion behavior and graphics recovery. The new movable non-supporting parts supersede the earlier rigid-layout restriction within that scope. The inhabited face, PCB, ramp and furniture remain fixed; existing routes and any audited social approach paths must preserve walking support and activity contact. Retain all 26 stable resident IDs and the recognizable controller form. Production assets remain reproducible from source. Mobile-specific work is outside scope.
 
 The manager owns this sole canonical plan, phase dispatch, design decisions and final acceptance. The separate implementer owns application changes in the linked worktree. The original-checkout delivery owner alone updates this plan, integrates accepted source, stages and commits. Other tasks treat the original checkout as read-only. No competing worktree plan is assigned.
 
@@ -31,12 +31,15 @@ Initial optimization targets are at most 525 draw calls and 1.11 million triangl
 
 The preparatory [architecture review, round 0](reviews/0_design.md) retains F0–F4, and the [live-scene review, round 1](reviews/1_design.md) retains F5–F10. Both target the recoverable old runtime at 7b4938d and preserve actual reports with manager-accepted design dispositions; neither accepts future implementation. Retain subsequent actual authored designs and review rounds here using the Fleet format, bind them to recoverable exact inputs, preserve findings and dispositions, and keep raw captures and scratch output ignored.
 
+The preliminary [mechanism/input source review, round 2](reviews/2_implementation.md) preserves F11 against its exact three-file snapshot. The early [rail visual review, round 3](reviews/3_implementation.md) preserves F12 against the frozen rail-proof sources and four native captures. Keep both original reports unchanged and retain their source/evidence snapshots. The base-relative patch for the rail-proof target has been requested but is not yet verified to exist; hashes alone do not make cleanup safe.
+
 ## Acceptance criteria
 
 The design contracts are accepted; every implementation and verification criterion remains open.
 
 - [ ] The hinged coral rail, recessed shoulder housing and attached-sleeve joystick lift open and close reversibly in place. Authoritative progress, target and phase agree with rendering; full-sweep clearance preserves the fixed inhabited surfaces and support in wide and close views.
 - [ ] Click selection, drag-to-orbit, keyboard access and held WASD panning coexist without accidental activation or stuck input; verify real production input plus focus, blur, cancellation and graphics lifecycle cases.
+- [ ] Restore and verify physical X/Y/A/B face-button markings in Nintendo orientation: X toward the shoulder, Y left, A right and B bottom. Keep ordinary page/UI text and all other device/building text absent; retain source-generated glyphs and record the reported defect with an effective gate.
 - [ ] Whole-scene materials, geometry, lighting and contact read more naturally in comparative native-size views while preserving the HDR palette and an explicitly measured performance budget.
 - [ ] All 26 stable IDs receive deterministic traits and make autonomous choices from model state and shared reservations upstream of rendering. The four accepted behavior families have supported approaches, reciprocal participation, valid exits and single prop ownership where applicable; explicit seek, advance and command history never teleport actors. Verify bounded simulation cases and negative controls.
 - [ ] Walking, standing and activity contact remain supported as controller parts move, and behavior remains coherent through pause, reduced motion, reset and graphics recovery according to the agreed contracts.
@@ -50,6 +53,7 @@ The design contracts are accepted; every implementation and verification criteri
 Status: active; dispatched to the separate implementer after design acceptance. Owner: separate implementer, with manager acceptance. Dependency: the accepted scene baseline and reviewed design.
 
 - [x] Accept the hinged coral rail, shoulder housing with bounded recess and joystick inspection lift on an attached sleeve; keep inhabited face, PCB, ramp and furniture fixed.
+- [ ] Resolve the user's report, "Seems XYAB are missing?" The manager confirmed the earlier text-free pass removed the physical markings and dispatched their restoration within phase 8. The implementer owns the fix, defect-register entry and verification gate; implementation and independent acceptance remain pending.
 - [ ] Implement authoritative progress, target and phase, reversible motion, actual occlusion-aware click/drag arbitration and nonvisual keyboard focus on physical parts, preserving pause, reduced motion and lifecycle cleanup/recovery.
 - [ ] Verify full-sweep clearance, real production input, intermediate geometry, support and focused visual cases using installed Chrome; resolve independent findings and report phase completion to the manager. Broad material work and the deterministic social model remain in phases 9 and 10.
 
@@ -81,6 +85,10 @@ Status: pending. Owner: manager and original-checkout delivery owner; separate i
 ## Outcome
 
 Pending. The documentation baseline is a9a6b3aadc5aa2cd219de43aa1242a3a7660f6a6, which preserves the prior plan byte for byte and adds the three reviewed README showcase images. This work unit was allocated through the primary checkout's common Fleet authority. The design is accepted and phase 8 implementation is active; phases 9–11 and all implementation acceptance remain pending.
+
+The newly reported missing X/Y/A/B markings are a pending phase 8 correction. The current scope now permits only those physical button letters; the historical accepted unit 0 record remains unchanged. A dispatched fix is not yet a verified fix.
+
+F11's equal-progress command cancellation defect was reproduced by the implementer, who reports a fix and a zero-delta two-toggle CPU assertion; independent verification of that repair remains pending. F12's insufficiently readable open-rail interior was accepted for repair, and is not fixed or accepted. Neither preliminary review establishes whole-phase acceptance. The rail-proof patch provenance follow-up remains pending, and its immutable snapshot must remain available.
 
 The fresh baseline visual run produced 17 captures, of which the reviewer inspected eight individually at native size, and completed its control assertions. Its final no-warning assertion failed on four ReadPixels warnings from the cached browser shell. Its owned processes were cleaned. This is a bounded baseline record, not a passing phase 8 gate or performance acceptance; subsequent phase gates use installed Chrome.
 
