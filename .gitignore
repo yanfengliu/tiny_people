@@ -158,6 +158,11 @@ vite.config.ts.timestamp-*
 *.[eE][xX][rR]
 *.[hH][dD][rR]
 
+# Reviewed README showcase assets; other rendered captures remain ignored.
+!/docs/showcase/overview.jpg
+!/docs/showcase/cafe.jpg
+!/docs/showcase/circuit-homes.jpg
+
 # Task output, scratch work, browser state, and local build artifacts.
 /output/
 /outputs/

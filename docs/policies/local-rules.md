@@ -14,10 +14,10 @@ Realism changes must retain the 26 residents, authored routes and furniture layo
 
 Use Y up, negative Z toward the shoulder, and negative X toward the rail. Keep the controller silhouette and four-button diamond recognizable. WASD translates the camera and its target together in the controller's horizontal plane, relative to the current viewing direction. Instructions belong in the README and nonvisual accessibility description.
 
-Keep images, task output, temporary files, scratch work, dependencies and build products ignored. Preserve the original local reference.
+Keep images, task output, temporary files, scratch work, dependencies and build products ignored, except the three reviewed README showcase screenshots explicitly allowed in `.gitignore` under `docs/showcase/`. These are documentation assets; production visuals remain generated from source. Preserve the original local reference.
 
 Browser and localhost verification must run headlessly with task-owned processes and cleanup. Do not leave a server running unless the user asks.
 
-The manager owns the phased plan and acceptance in the original checkout's `docs/project-plan.md`. The implementer owns application source and scoped verification. Do not create a competing plan in this worktree.
+The manager owns the phased plan and acceptance in the original checkout's `docs/work/0_procedural-people-world/plan.md`. The implementer owns application source and scoped verification. Do not create a competing plan in this worktree.
 
 User authorization on 2026-09-05: "Commit often and commit early. You are always authorized to push to remote." One Git delivery owner commits verified changes and pushes from the original checkout to the configured intended remote. Use normal safe pushes; do not force-push or discard remote work.

@@ -6,6 +6,20 @@ Residents use adult proportions, tapered limbs, rounded shoes and separate fabri
 
 Desktop browsers are the supported target. The canvas follows desktop window resizing; dedicated mobile support and mobile validation are outside the current scope.
 
+## Showcase
+
+![Overview of the charcoal-and-coral controller, with a café, joystick courtyard and homes on the exposed green circuit board.](docs/showcase/overview.jpg)
+
+*A whole neighborhood on one controller.*
+
+![Tiny residents gather around a coral-and-cream striped café beside the controller's four face buttons.](docs/showcase/cafe.jpg)
+
+*Coffee beneath the buttons.*
+
+![Two small homes with cyan and coral roofs sit among chips and circuit traces, connected to the upper surface by a ramp.](docs/showcase/circuit-homes.jpg)
+
+*Homes, gardens and daily life among the circuitry.*
+
 ## Run locally
 
 Use Node **24.12.0** (`.nvmrc`), then run:
@@ -58,4 +72,4 @@ The production build goes to ignored `dist/`. The application uses Vite, TypeScr
 
 Device coordinates use Y up, negative Z toward the shoulder, and negative X toward the coral rail. The surface is at Y=1.55 and the circuit board at approximately Y=0.97. The right-controller face layout is X north, A east, B south and Y west.
 
-Reference images, screenshots, dependencies, builds, browser artifacts and scratch work are ignored. Keep reusable source, configuration, lockfiles and concise documentation in Git. The original reference and `LICENSE` must be preserved. No affiliation with Nintendo is implied.
+The three reviewed README screenshots in `docs/showcase/` are versioned documentation assets. Reference images, other screenshots, dependencies, builds, browser artifacts and scratch work are ignored. Keep reusable source, configuration, lockfiles and concise documentation in Git. The original reference and `LICENSE` must be preserved. No affiliation with Nintendo is implied.

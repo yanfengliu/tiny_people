@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "allocations": [
+    {
+      "id": 0,
+      "theme": "procedural-people-world",
+      "legacyFiles": [
+        {
+          "path": "historical/project-plan.md",
+          "sha256": "e66e331f2c321d25242e71f6f9a0026949c43d72b5f27630e4cf5b0719032649",
+          "source": "tiny_people@7b4938d9e4bdc69b002c4a2affd78bc3f676b2a9:docs/project-plan.md"
+        }
+      ]
+    }
+  ]
+}
