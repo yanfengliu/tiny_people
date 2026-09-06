@@ -1,6 +1,6 @@
 # Tiny people
 
-A living browser miniature inspired by the supplied Joy-Con reference: 26 tiny residents share a button-side café, joystick courtyard and two homes among the circuitry of a charcoal-and-coral controller. The full-viewport scene contains only the model, with no visible interface or textual markings.
+A living browser miniature inspired by the supplied Joy-Con reference: 26 tiny residents share a button-side café, joystick courtyard and two homes among the circuitry of a charcoal-and-coral controller. The full-viewport scene shows only the model. Its four physical face buttons retain X/Y/A/B markings; interface text and other scene labels remain absent.
 
 Residents use adult proportions, tapered limbs, rounded shoes and separate fabric, skin and hair surfaces. Three plant forms combine thin curved leaves and branching stems with open pot rims and recessed granular soil. Their shapes and materials are generated locally from source.
 
@@ -44,6 +44,7 @@ npm run audit
 npm run check:routes
 npm run check:plants
 npm run check:residents
+npm run check:buttons
 npm run preview
 ```
 

@@ -7,7 +7,7 @@ Updated: 2026-09-06
 
 ## Problem and outcome
 
-Expand the accepted desktop controller miniature so visitors can click controller parts to open them in place and watch residents act autonomously as a community. Improve realism across the whole scene while retaining the HDR-adjusted charcoal, coral, cyan, cream and circuit-green palette. The manager's goal is active and the design is accepted. Phase 8 has been dispatched to the separate implementer and is in progress; no expansion implementation has yet been accepted.
+Expand the accepted desktop controller miniature so visitors can click controller parts to open them in place and watch residents act autonomously as a community. Improve realism across the whole scene while retaining the HDR-adjusted charcoal, coral, cyan, cream and circuit-green palette. The manager's goal is active and the design is accepted. Phase 8 remains in progress; the isolated physical X/Y/A/B correction is accepted, while opening mechanisms and later expansion behavior remain unaccepted.
 
 ## Scope
 
@@ -31,7 +31,9 @@ Initial optimization targets are at most 525 draw calls and 1.11 million triangl
 
 The preparatory [architecture review, round 0](reviews/0_design.md) retains F0–F4, and the [live-scene review, round 1](reviews/1_design.md) retains F5–F10. Both target the recoverable old runtime at 7b4938d and preserve actual reports with manager-accepted design dispositions; neither accepts future implementation. Retain subsequent actual authored designs and review rounds here using the Fleet format, bind them to recoverable exact inputs, preserve findings and dispositions, and keep raw captures and scratch output ignored.
 
-The preliminary [mechanism/input source review, round 2](reviews/2_implementation.md) preserves F11 against its exact three-file snapshot. The early [rail visual review, round 3](reviews/3_implementation.md) preserves F12 against the frozen rail-proof sources and four native captures. Keep both original reports unchanged and retain their source/evidence snapshots. The base-relative patch for the rail-proof target has been requested but is not yet verified to exist; hashes alone do not make cleanup safe.
+The preliminary [mechanism/input source review, round 2](reviews/2_implementation.md) preserves F11 against its exact three-file snapshot. The early [rail visual review, round 3](reviews/3_implementation.md) preserves F12 against the frozen rail-proof sources and four native captures. Keep both original reports unchanged and retain their source/evidence snapshots. The implementer subsequently supplied the rail-proof patch and a provenance record naming base 4979542; the patch digest matches the supplied record, but full reconstruction verification remains pending and does not authorize snapshot cleanup.
+
+The [physical button-marking review, round 4](reviews/4_implementation.md) accepts the exact isolated X/Y/A/B source and four native root views. Its frozen first-run process-wrapper limitation remains part of that historical report. The later clean Chrome gate and process records below establish the final local integration checks without rewriting the review.
 
 ## Acceptance criteria
 
@@ -39,7 +41,7 @@ The design contracts are accepted; every implementation and verification criteri
 
 - [ ] The hinged coral rail, recessed shoulder housing and attached-sleeve joystick lift open and close reversibly in place. Authoritative progress, target and phase agree with rendering; full-sweep clearance preserves the fixed inhabited surfaces and support in wide and close views.
 - [ ] Click selection, drag-to-orbit, keyboard access and held WASD panning coexist without accidental activation or stuck input; verify real production input plus focus, blur, cancellation and graphics lifecycle cases.
-- [ ] Restore and verify physical X/Y/A/B face-button markings in Nintendo orientation: X toward the shoulder, Y left, A right and B bottom. Keep ordinary page/UI text and all other device/building text absent; retain source-generated glyphs and record the reported defect with an effective gate.
+- [x] Restore and verify physical X/Y/A/B face-button markings in Nintendo orientation: X toward the shoulder, Y left, A right and B bottom. Keep ordinary page/UI text and all other device/building text absent; retain source-generated glyphs and record the reported defect with an effective gate.
 - [ ] Whole-scene materials, geometry, lighting and contact read more naturally in comparative native-size views while preserving the HDR palette and an explicitly measured performance budget.
 - [ ] All 26 stable IDs receive deterministic traits and make autonomous choices from model state and shared reservations upstream of rendering. The four accepted behavior families have supported approaches, reciprocal participation, valid exits and single prop ownership where applicable; explicit seek, advance and command history never teleport actors. Verify bounded simulation cases and negative controls.
 - [ ] Walking, standing and activity contact remain supported as controller parts move, and behavior remains coherent through pause, reduced motion, reset and graphics recovery according to the agreed contracts.
@@ -53,7 +55,7 @@ The design contracts are accepted; every implementation and verification criteri
 Status: active; dispatched to the separate implementer after design acceptance. Owner: separate implementer, with manager acceptance. Dependency: the accepted scene baseline and reviewed design.
 
 - [x] Accept the hinged coral rail, shoulder housing with bounded recess and joystick inspection lift on an attached sleeve; keep inhabited face, PCB, ramp and furniture fixed.
-- [ ] Resolve the user's report, "Seems XYAB are missing?" The manager confirmed the earlier text-free pass removed the physical markings and dispatched their restoration within phase 8. The implementer owns the fix, defect-register entry and verification gate; implementation and independent acceptance remain pending.
+- [x] Resolve the user's report, "Seems XYAB are missing?" The isolated source-generated markings, defect-register entry and mandatory `check:buttons` gate passed root verification and independent native/source review; the manager accepted the correction.
 - [ ] Implement authoritative progress, target and phase, reversible motion, actual occlusion-aware click/drag arbitration and nonvisual keyboard focus on physical parts, preserving pause, reduced motion and lifecycle cleanup/recovery.
 - [ ] Verify full-sweep clearance, real production input, intermediate geometry, support and focused visual cases using installed Chrome; resolve independent findings and report phase completion to the manager. Broad material work and the deterministic social model remain in phases 9 and 10.
 
@@ -84,11 +86,13 @@ Status: pending. Owner: manager and original-checkout delivery owner; separate i
 
 ## Outcome
 
-Pending. The documentation baseline is a9a6b3aadc5aa2cd219de43aa1242a3a7660f6a6, which preserves the prior plan byte for byte and adds the three reviewed README showcase images. This work unit was allocated through the primary checkout's common Fleet authority. The design is accepted and phase 8 implementation is active; phases 9–11 and all implementation acceptance remain pending.
+Pending. The documentation baseline is a9a6b3aadc5aa2cd219de43aa1242a3a7660f6a6, which preserves the prior plan byte for byte and adds the three reviewed README showcase images. This work unit was allocated through the primary checkout's common Fleet authority. The design and isolated X/Y/A/B correction are accepted; phase 8 mechanisms remain active and phases 9–11 remain pending.
 
-The newly reported missing X/Y/A/B markings are a pending phase 8 correction. The current scope now permits only those physical button letters; the historical accepted unit 0 record remains unchanged. A dispatched fix is not yet a verified fix.
+The seven-file X/Y/A/B handoff, manifest SHA-256 `ae2a6829630db7c00357fe629b37967eb3b2bbecd85c6fa3da091d14e9270711`, was copied into the original checkout with exact base/target checks. Root `check:buttons`, typecheck, build, audit, routes, plants, residents, browser and exploration all passed. The focused gate rejects swapped, floating, inverted and missing marks. The manager and independent reviewer accepted native overview, overhead, café and close views; the historical accepted unit 0 record remains unchanged.
 
-F11's equal-progress command cancellation defect was reproduced by the implementer, who reports a fix and a zero-delta two-toggle CPU assertion; independent verification of that repair remains pending. F12's insufficiently readable open-rail interior was accepted for repair, and is not fixed or accepted. Neither preliminary review establishes whole-phase acceptance. The rail-proof patch provenance follow-up remains pending, and its immutable snapshot must remain available.
+The first browser run completed its application assertions and internal cleanup, but the outer process wrapper failed on denied CIM access and did not retain the child exit code. Its original captures and limitation remain in ignored `output/manager/xyab-checkpoint/first-browser-run/`. One bounded repeat with process-inspection preflight passed with 17 views, no browser errors and 150-frame mean 16.669 ms/p95 17.2 ms; exploration then passed 13 groups and 18 translations. Installed Chrome was used with the executable override unset. The final identity scan found zero leftovers among 34 tracked process identities, and the first browser PID was absent. These checks accept this narrow correction, not phase 8 mechanics or a broader performance target.
+
+F11's equal-progress command cancellation defect was reproduced by the implementer, who reports a fix and a zero-delta two-toggle CPU assertion; independent verification of that repair remains pending. F12's insufficiently readable open-rail interior was accepted for repair, and is not fixed or accepted. Neither preliminary review establishes whole-phase acceptance. The rail-proof patch reconstruction follow-up remains pending, and its immutable snapshot must remain available.
 
 The fresh baseline visual run produced 17 captures, of which the reviewer inspected eight individually at native size, and completed its control assertions. Its final no-warning assertion failed on four ReadPixels warnings from the cached browser shell. Its owned processes were cleaned. This is a bounded baseline record, not a passing phase 8 gate or performance acceptance; subsequent phase gates use installed Chrome.
 

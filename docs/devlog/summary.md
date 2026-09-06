@@ -1,5 +1,7 @@
 # Devlog Summary
 
+- 2026-09-05: Restored source-drawn X/Y/A/B on the four physical face buttons after the user clarified that these markings belong on the model. The focused geometry gate verifies placement, recognizable strokes and contact while retaining the model-only presentation.
+
 - 2026-09-05: Moved the accepted controller-world plan to work ID 0, preserved its source and acceptance record, and updated the manager references to the permanent entry point.
 
 - 2026-09-05: **Adults, foliage and activity contact now read at miniature scale** — replaced toy proportions and oval leaves with adult anatomy, distinct materials, three botanical forms, recessed soil and open pots. Added held books and sipping cups; watering lands on actual soil. Independent native review corrected sparse leaves, hip seams and a fern root gap. Final overview rendering uses 500 calls and 1,057,090 triangles, with a bounded 16.67ms average.

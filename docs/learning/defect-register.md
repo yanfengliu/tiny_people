@@ -1,5 +1,13 @@
 # Defect register
 
+## Removing scene text also removed the physical face-button markings
+
+**Reported symptom:** The user asked why X/Y/A/B were missing from the controller.
+
+**Investigation and cause:** The earlier model-only revision removed physical button markings along with interface text and decorative scene labels. That applied the text-removal request too broadly. The user has now explicitly retained X/Y/A/B on the actual face buttons.
+
+**Correction and check:** Four thin source-drawn light-gray marks sit on the actual button tops: X toward the shoulder, Y left, A right and B below. No external font or raster asset is used. `check:buttons` checks their real stroke/counter geometry, placement and face contact; swapped, raised, inverted and missing marks must fail. Native overview and close views complement this check. Interface text and other removed scene labels remain absent.
+
 ## Exact PNG bytes can mistake isolated raster quantization for motion
 
 **Reported symptom:** The original-checkout production release check failed after D was released, although independent camera/target checks passed. Decoding the two 1440×1000 images found exactly one changed channel at one pixel, differing by one 8-bit level.

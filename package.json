@@ -16,7 +16,8 @@
     "check:routes": "node scripts/check-routes.mjs",
     "check:plants": "node scripts/check-plants.mjs",
     "check:residents": "node scripts/check-residents.mjs",
-    "check:exploration": "node scripts/check-exploration.mjs"
+    "check:exploration": "node scripts/check-exploration.mjs",
+    "check:buttons": "node scripts/check-button-markings.mjs"
   },
   "dependencies": {
     "three": "0.185.1"

@@ -1,3 +1,4 @@
+import { addFaceButtonMark } from './button-markings';
 import * as THREE from 'three';
 import { box, cylinder, extrude, line, ring } from './geometry';
 import { grainedPlastic } from './materials';
@@ -81,10 +82,11 @@ export function createController() {
   cylinder(railControls, coral, .17,.04,0,.06,-4.6);
 
   // Right Joy-Con: X north, A east, B south, Y west, joystick below.
-  for (const [x, z] of [[.45,-5.05],[1.51,-4],[.45,-2.95],[-.61,-4]]) {
+  for (const [x, z, mark] of [[.45,-5.05,'X'],[1.51,-4,'A'],[.45,-2.95,'B'],[-.61,-4,'Y']] as const) {
     cylinder(group, seam, .64,.06,x,1.56,z);
     cylinder(group, rubber, .595,.21,x,1.68,z,.625);
     cylinder(group, charcoal, .56,.075,x,1.815,z,.59);
+    addFaceButtonMark(group,mark,x,z);
   }
   box(group,seam,[.66,.055,.66],[-1.52,1.56,-5.5],.15);
   box(group,rubber,[.66,.15,.22],[-1.52,1.65,-5.5],.035);
