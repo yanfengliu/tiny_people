@@ -1,9 +1,12 @@
 import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { createController } from './scene/controller';
+import { createController, controllerMechanisms } from './scene/controller';
 import { createCommunity } from './scene/community';
 import { configureEnvironment } from './scene/environment';
+import { createMechanismState } from './scene/mechanism-state';
+import { createMechanismClearance } from './scene/mechanism-clearance';
+import { createMechanismInput } from './mechanism-input';
 
 const mount = document.querySelector<HTMLDivElement>('#scene')!;
 const error = document.querySelector<HTMLDivElement>('#error')!;
@@ -91,10 +94,19 @@ function startScene() {
   scene.add(controller);
   const community = createCommunity(controller);
   scene.add(community.group);
+  const assemblies = controllerMechanisms(controller);
+  const clearance = createMechanismClearance(assemblies, community);
+  const mechanisms = createMechanismState(assemblies.map(assembly => assembly.id),
+    (id, progress) => assemblies.find(assembly => assembly.id === id)!.setProgress(progress),
+    // Include the braking excursion after reversal, not only the path toward the new target.
+    id => !clearance.checkLive(id as typeof assemblies[number]['id'], 0, 1).blocked);
+  let mechanismInput: ReturnType<typeof createMechanismInput> | undefined;
+  releaseFailedStartup = () => { mechanismInput?.dispose(); listeners.abort(); controls.dispose(); releaseScene(scene, renderer); };
 
   let view: 'overview' | 'free' = 'overview';
   let worldTime = 0, previousFrame: number | undefined;
   let testFrozen = false, pauseRequested = false, allowReducedMotion = false;
+  let mechanismsFrozen = false;
   let suspended = false, disposed = false, contextLost = false;
   let inputBeforeContextLoss = true;
   const paused = () => pauseRequested || (reducedMotion && !allowReducedMotion);
@@ -106,8 +118,43 @@ function startScene() {
 
   // Fit only the controller and its residents, excluding the infinite ground.
   const bounds = new THREE.Box3().setFromObject(controller).expandByObject(community.group);
+  for (const assembly of assemblies) {
+    const samples = Math.max(1, Math.ceil(assembly.maximumPointTravel / .03));
+    for (let i = 0; i <= samples; i++) {
+      assembly.setProgress(i / samples);
+      bounds.expandByObject(assembly.root);
+    }
+    assembly.setProgress(0);
+  }
+  // Every point is <=.015 from a sampled pose, by each assembly's vertex travel bound.
+  bounds.expandByScalar(.015);
   const framingCorners: THREE.Vector3[] = [];
   for (const x of [bounds.min.x, bounds.max.x]) for (const y of [bounds.min.y, bounds.max.y]) for (const z of [bounds.min.z, bounds.max.z]) framingCorners.push(new THREE.Vector3(x, y, z));
+
+  const historyKey = 'tinyPeopleMechanismsV1';
+  const savedMechanisms = history.state?.[historyKey];
+  if (savedMechanisms?.version === 1) mechanisms.restore(savedMechanisms.states);
+  let historyDirty = false, lastHistoryWrite = -Infinity;
+  function saveMechanisms(force = false) {
+    historyDirty = true;
+    const now = performance.now();
+    // Rapid reversals share one history entry without flooding the browser's History API.
+    if (!force && now - lastHistoryWrite < 200) return;
+    try {
+      const prior = history.state && typeof history.state === 'object' ? history.state : {};
+      history.replaceState({ ...prior, [historyKey]: { version: 1, states: mechanisms.snapshot() } }, '');
+    } catch { /* Restricted history does not prevent interaction or graphics recovery. */ }
+    lastHistoryWrite = now; historyDirty = false;
+  }
+  function commandMechanism(id: string, source: 'pointer' | 'keyboard' | 'diagnostic') {
+    if (disposed || suspended || contextLost || document.hidden || !controls.enabled) return;
+    mechanisms.command(id, source, reducedMotion, worldTime);
+    saveMechanisms();
+  }
+  mechanismInput = createMechanismInput({ canvas, camera, scene, assemblies,
+    enabled: () => !disposed && !suspended && !contextLost && !document.hidden && controls.enabled,
+    cameraKeysHeld: () => heldKeys.size > 0,
+    toggle: commandMechanism, snapshots: mechanisms.snapshot });
 
   function togglePause() {
     if (disposed) return;
@@ -216,13 +263,16 @@ function startScene() {
   }
 
   function animate(milliseconds: number) {
-    if (disposed || suspended || contextLost) return;
+    if (disposed || suspended || contextLost || document.hidden) return;
     const delta = previousFrame === undefined ? 0 : THREE.MathUtils.clamp((milliseconds - previousFrame) / 1000, 0, .05);
     if (!testFrozen && !paused()) worldTime += delta;
     previousFrame = milliseconds;
     translateCamera(delta);
     community.update(worldTime);
+    if (!mechanismsFrozen) mechanisms.advance(delta, worldTime, reducedMotion);
     controls.update();
+    mechanismInput?.update(mechanisms.snapshot().some(state => state.progress !== state.target));
+    if (historyDirty) saveMechanisms();
     renderer.render(scene, camera);
   }
 
@@ -236,6 +286,7 @@ function startScene() {
     disposed = true;
     clearHeldKeys();
     renderer.setAnimationLoop(null);
+    mechanismInput?.dispose();
     listeners.abort();
     controls.removeEventListener('start', markExploring);
     controls.dispose();
@@ -258,6 +309,8 @@ function startScene() {
   canvas.addEventListener('webglcontextlost', event => {
     event.preventDefault();
     clearHeldKeys();
+    mechanismInput?.cancel();
+    saveMechanisms(true);
     inputBeforeContextLoss = controls.enabled;
     controls.enabled = false;
     contextLost = true;
@@ -278,6 +331,8 @@ function startScene() {
   }, { signal });
   window.addEventListener('pagehide', event => {
     clearHeldKeys();
+    mechanismInput?.cancel();
+    saveMechanisms(true);
     if (event.persisted) {
       suspended = true;
       previousFrame = undefined;
@@ -294,14 +349,21 @@ function startScene() {
     const releaseTestClock = () => { testFrozen = false; previousFrame = undefined; };
     Object.assign(window, { __tinyWorld: {
       camera: () => ({ position: camera.position.toArray(), target: controls.target.toArray() }),
-      metrics: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries }),
+      metrics: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs?.length ?? 0 }),
       setTime: (time: number) => { testFrozen = true; worldTime = time; community.update(time); },
       resume: releaseTestClock,
       releaseTestClock,
       residents: () => community.snapshot(),
       routes: () => community.auditRoutes(),
       state: () => ({ time: worldTime, paused: paused(), reducedMotion, testFrozen, view, suspended, disposed, contextLost, heldKeys: [...heldKeys].sort() }),
-      setInputEnabled: (enabled: boolean) => { controls.enabled = enabled; if (!enabled) clearHeldKeys(); },
+      setInputEnabled: (enabled: boolean) => { controls.enabled = enabled; if (!enabled) { clearHeldKeys(); mechanismInput?.cancel(); } },
+      mechanisms: mechanisms.snapshot,
+      mechanismEvents: mechanisms.events,
+      commandMechanism: (id: string) => commandMechanism(id, 'diagnostic'),
+      setMechanismProgress: (id: string, progress: number) => mechanisms.setProgress(id, progress),
+      freezeMechanisms: (frozen: boolean) => { mechanismsFrozen = frozen; previousFrame = undefined; },
+      clocks: () => ({ life: worldTime, mechanism: mechanisms.time() }),
+      mechanismInput: () => mechanismInput?.diagnostics(),
       view: (position: [number, number, number], target: [number, number, number]) => {
         placeCamera(new THREE.Vector3(...position), new THREE.Vector3(...target));
         markExploring();

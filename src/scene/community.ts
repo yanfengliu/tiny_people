@@ -216,6 +216,16 @@ export function createCommunity(controller: THREE.Group) {
     }
     return {routes:routes.length,residents:26,walkers:walkers.length,samples:sampleCount,clearance,failures};
   }
+  // Expose the existing authored paths and real physical meshes to the mechanical sweep audit.
+  function routeFootprints() {
+    return routes.flatMap(route => {
+      const count = Math.ceil(route.length / .025);
+      return Array.from({ length: count + 1 }, (_, index) => {
+        const p = route.curve.getPointAt(index / count);
+        return { route: route.name, index, x: p.x, y: surfaceAt(p.x, p.z) ?? -10, z: p.z, radius: clearance, spacing: route.length / count };
+      });
+    });
+  }
   function auditStationaryProps() {
     scenery.updateMatrixWorld(true); residents.group.updateMatrixWorld(true);
     const clothes=residents.group.getObjectByName('resident-clothes') as THREE.InstancedMesh;
@@ -238,5 +248,5 @@ export function createCommunity(controller: THREE.Group) {
   }
   group.add(batchFurnishings(scenery),residents.group);
   update(0);
-  return {group,scenery,update,auditRoutes,auditStationaryProps,inspectPoint,snapshot:()=>poses.map(p=>({...p})),places:3,residentCount:26};
+  return {group,scenery,update,auditRoutes,auditStationaryProps,inspectPoint,routeFootprints,physicalMeshes:()=>[...physical] as THREE.Mesh[],snapshot:()=>poses.map(p=>({...p})),places:3,residentCount:26};
 }

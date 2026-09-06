@@ -34,8 +34,10 @@ Open the local address printed by Vite. Controls work immediately:
 - Hold **W / A / S / D** to pan forward, left, back or right across the controller plane, relative to the current view. Diagonals keep the same speed.
 - Drag with a mouse to orbit; scroll to zoom.
 - **Arrow keys** orbit, **+ / −** zoom, **R** restores the centered overview, and **Space** pauses or resumes resident life.
+- Click the coral side rail, rear shoulder housing or joystick cap to open or close it. A local highlight and pointer cursor identify the part under the mouse. Dragging continues to orbit the camera.
+- **Tab** focuses each movable part with a physical highlight; **Enter / Space** opens or closes the focused part. Space pauses life when a part is not focused.
 
-Camera controls remain available while life is paused. A reduced-motion preference starts life paused and responds to live preference changes; **Space** deliberately resumes it. Camera keys ignore editable fields and modifier shortcuts, and held movement stops when the page loses focus or visibility. Nonvisual control instructions remain available to screen readers. Stop the server with Ctrl+C when finished.
+Camera controls and deliberate opening remain available while life is paused. A reduced-motion preference starts life paused, makes opening immediate and responds to live preference changes; **Space** deliberately resumes life. **R** resets only the camera. Opening does not move the inhabited decks, ramp, furniture or residents. Camera keys ignore editable fields and modifier shortcuts, and held movement stops when the page loses focus or visibility. Nonvisual control instructions remain available to screen readers. Stop the server with Ctrl+C when finished.
 
 ```sh
 npm run typecheck
@@ -45,12 +47,18 @@ npm run check:routes
 npm run check:plants
 npm run check:residents
 npm run check:buttons
+npm run check:mechanism-state
+npm run check:mechanisms
 npm run preview
 ```
 
 For headless browser verification, install Chromium with `npx playwright install chromium`, then run `npm run build` and `npm run check:browser`. To use an installed Chrome instead, set `PLAYWRIGHT_CHANNEL=chrome` in your shell. An optional `PLAYWRIGHT_CHROMIUM_EXECUTABLE` selects an existing Chromium binary. The check uses real drag, wheel and keyboard reset, captures camera and activity close-ups, checks console/network errors and desktop resizing, and closes its own browser and local server in `finally`. It also checks actual rendered panning in the production build. Captures and their SHA-256 manifest go to ignored `output/playwright/`; inspect them to verify text removal, geometry and framing, which interaction assertions alone cannot establish.
 
 Run `npm run check:exploration` for held-key WASD translation, keyboard pause, model-only desktop rendering, reduced motion on load and live changes, history return, persisted-page suspension, and unavailable/lost graphics recovery. It saves review captures in ignored `output/exploration/` and closes its owned resources. The former visible-button and preset checks were replaced to match the model-only requirement; dedicated mobile/touch branches were removed when the user limited support to desktop. Actual history navigation and synthetic persisted events are reported separately; a working history return alone does not establish a browser-cache hit.
+
+The mechanism state gate checks reversible acceleration, endpoint events, blocked motion, reduced motion and validated restoration. The geometry gate certifies each continuous motion against the actual controller internals, route footprints, resident bodies, furnishings and plants; it also checks mechanism pairings and deliberately obstructed paths. Runtime checks revalidate live occupancy before movement. An obstruction holds the mechanism in place without relocating residents or props. Merged solid interiors use the union of their authored volumes, including overlaps.
+
+After building, run `npm run check:mechanism-input` for actual surface picking and occlusion, the five-pixel click/drag boundary, keyboard access, lifecycle recovery, production input, 100-cycle resource stability and a 600-frame active timing sample. Use installed Chrome (`PLAYWRIGHT_CHANNEL=chrome`, executable override unset). Its native closed, intermediate, open, focus and restored captures require visual review: a clearance pass alone does not establish a useful interior reveal.
 
 Camera checks use frozen world time and independently observed camera transforms. A disabled-input check proves moving people cannot masquerade as working controls. Separate ordinary-time checks confirm walking, and the harness reports a bounded 150-frame local timing sample. Development-only scene inspection hooks are omitted from the production build.
 
@@ -61,6 +69,11 @@ The production build goes to ignored `dist/`. The application uses Vite, TypeScr
 ## Source layout
 
 - `src/scene/controller.ts`: device shell, face controls, coral rail and exposed PCB.
+- `src/scene/button-markings.ts`: source-drawn physical X/Y/A/B marks.
+- `src/scene/mechanism-state.ts`: authoritative progress, velocity, targets, phases and bounded events.
+- `src/scene/mechanism-clearance.ts`: continuous swept-geometry and live-occupancy checks.
+- `src/scene/mechanism-geometry.ts`: mechanism geometry batching with authored solid boundaries.
+- `src/mechanism-input.ts`: visible-surface picking, click/drag arbitration and nonvisual keyboard controls.
 - `src/scene/geometry.ts`: reusable geometry helpers.
 - `src/scene/community.ts`: café, courtyard, homes, ramp, routes and actual-geometry clearance checks.
 - `src/scene/residents.ts`: material-specific instanced batches with walking and local activity poses.

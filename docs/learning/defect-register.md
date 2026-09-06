@@ -1,5 +1,29 @@
 # Defect register
 
+## Cancelled pointers and instant motion need explicit input bookkeeping
+
+**Reported symptom:** Source review found that cancelling only captured pointer IDs could leave OrbitControls tracking an uncaptured second pointer. A separate hover check could miss a part moving beneath a stationary pointer, especially an instant reduced-motion endpoint. Picking immediately after a camera shortcut could also use the camera's previous world matrix.
+
+**Correction and check:** Input tracks every pointer forwarded to camera controls, drains those IDs through the public cancellation path and rejects a second pointer before creating a mixed gesture. Hover invalidates when authoritative progress changes, and picking refreshes the camera matrix before casting the ray. `check:mechanism-input` exercises secondary-pointer cancellation followed by a fresh drag, native capture loss, stationary-pointer instant opening and immediate camera changes. Supplemental synthetic cases are labelled separately from trusted pointer/keyboard input and must establish their event preconditions.
+
+## A collision-free flap can still hide its interior
+
+**Reported symptom:** The first rail proof passed its geometry sweep, but independent native review saw mainly the coral cover and a narrow dark strip. The intended interior was not meaningfully visible.
+
+**Correction and check:** The rail now uses a wider hinge arc, a hollow molded cover and a raised populated board in a metal channel. The flex connection remains attached. Preserve the rejected proof; compare ordinary oblique, intermediate and close native views from the replacement source, and rerun the unchanged continuous geometry gate. Mesh existence and endpoint clearance do not establish a useful reveal.
+
+## Merged solid parity can erase occupied overlap
+
+**Reported symptom:** Clearance review identified that treating a merged mesh as one parity volume could classify overlapping closed solids as empty, including coincident copies.
+
+**Correction and check:** Mechanism batches retain each authored closed-solid boundary. Containment is the union of those volumes, and ambiguous unannotated overlap rejects rather than guessing. `check:mechanisms` includes offset and coincident overlap controls against both fixed and live occupancy; all must block an interior probe. Surface distance alone cannot detect a fully enclosed obstruction.
+
+## Same-tick reversal left a terminal mechanism opening
+
+**Reported symptom:** An open command followed immediately by close could leave progress and target at zero while the phase still reported closing, without a terminal closed event.
+
+**Correction and check:** Commands resolve an already-reached target immediately, with zero velocity and one terminal event. `check:mechanism-state` checks the same-tick pair with zero advancement and cancellation of a blocked opening, then verifies that later advancement leaves the endpoint stable without another clearance query.
+
 ## Removing scene text also removed the physical face-button markings
 
 **Reported symptom:** The user asked why X/Y/A/B were missing from the controller.

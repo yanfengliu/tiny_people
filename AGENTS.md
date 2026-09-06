@@ -112,6 +112,10 @@ Node 24.12.0 (`.nvmrc`): a version mismatch is not a code failure. Before any co
 - `npm run check:plants` — actual plant meshes across variant seeds 0–4 at two scales, including closed leaf/pot edges, finite attributes, shared materials and soil/root contact with a raised-root negative control.
 - `npm run check:residents` — shoe soles on slopes, seated clearance and instancing capacity, with its own positive control.
 - `npm run check:buttons` — physical X/Y/A/B placement, stroke/counter geometry and face contact, with swapped, floating, inverted and missing-mark negative controls.
+- `npm run check:mechanism-state` — deterministic state/events across frame partitions, reversal and blocked cancellation, reduced motion and validated history restoration.
+- `node scripts/mechanism-performance.mjs --check` — paired raw 150/600-sample budget evaluation, exact violation-code controls, inclusive limits, strict slow-frame threshold and invalid/sparse-data rejection without a browser.
+- `npm run check:mechanisms` — actual emitted full-sweep geometry for all three mechanisms, including 33 travel/support samples, eight combined endpoints, 12 activity times and intermediate-only obstruction controls.
+- `npm run check:mechanism-input` — regenerates source-bound triangle fixtures, then checks real surface picking, input/lifecycle contracts, 100 resource cycles and 150/600-frame timing samples in installed Chrome; run after building with `PLAYWRIGHT_CHANNEL=chrome` and the executable override unset.
 - `npm run check:browser` and `npm run check:exploration` — headless Playwright runs driving real desktop drag, wheel and keyboard input; they need Chromium (`npx playwright install chromium`) and write their captures and SHA-256 manifests under ignored `output/`. The captures are the visual evidence: inspect them, because the interaction assertions alone establish neither geometry nor framing.
 
 ## Invariants & boundaries
