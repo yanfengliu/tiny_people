@@ -5,6 +5,7 @@ import { createResidents } from './residents';
 import { createPlant } from './plants';
 import type { ResidentPose } from './residents';
 import { intersectsMeshVolume } from './physical-audit';
+import { directionalWood, glazedCeramic, mattePaper, wovenFabric } from './materials';
 
 const FACE = 1.55, BOARD = .943;
 const clearance = .085;
@@ -15,11 +16,60 @@ const palette = {
   coral: new THREE.MeshStandardMaterial({ color: '#e84e3c', roughness: .7 }),
   mint: new THREE.MeshStandardMaterial({ color: '#54baa0', roughness: .7 }),
   turquoise: new THREE.MeshStandardMaterial({ color: '#00a9bb', roughness: .6 }),
-  wood: new THREE.MeshStandardMaterial({ color: '#b68b52', roughness: .9 }),
+  wood: directionalWood('#b68b52'),
   dark: new THREE.MeshStandardMaterial({ color: '#34494c', roughness: .8 }),
   yellow: new THREE.MeshStandardMaterial({ color: '#f1bb43', roughness: .7 }),
   glass: new THREE.MeshStandardMaterial({ color: '#69c9d4', roughness: .25, metalness: .2 }),
+  fabricCream: wovenFabric('#fff4d7'),
+  fabricCoral: wovenFabric('#e84e3c'),
+  fabricTurquoise: wovenFabric('#00a9bb'),
+  ceramic: glazedCeramic('#fff4d7'),
+  paper: mattePaper('#fff4d7'),
 };
+
+// A thin, closed cloth surface: smooth faces and separate edge normals preserve its
+// thickness without the rounded board silhouette of the previous canopy panels.
+function clothGeometry(columns:number,rows:number,point:(u:number,v:number)=>THREE.Vector3,thickness:THREE.Vector3) {
+  const positions:number[]=[],normals:number[]=[],uvs:number[]=[],indices:number[]=[];
+  const stride=columns+1,layerSize=stride*(rows+1),half=thickness.clone().multiplyScalar(.5);
+  function normalAt(u:number,v:number) {
+    const du=point(Math.min(1,u+.001),v).sub(point(Math.max(0,u-.001),v));
+    const dv=point(u,Math.min(1,v+.001)).sub(point(u,Math.max(0,v-.001)));
+    const n=du.cross(dv).normalize();
+    if(n.dot(thickness)<0)n.negate();
+    return n;
+  }
+  for(const side of [1,-1]) for(let j=0;j<=rows;j++) for(let i=0;i<=columns;i++) {
+    const u=i/columns,v=j/rows,p=point(u,v).addScaledVector(half,side),n=normalAt(u,v).multiplyScalar(side);
+    positions.push(...p.toArray());normals.push(...n.toArray());uvs.push(u,v);
+  }
+  const forward=point(1,0).sub(point(0,0)).cross(point(0,1).sub(point(0,0))).dot(thickness)>0;
+  function quad(a:number,b:number,c:number,d:number) { indices.push(a,b,c,a,c,d); }
+  for(let j=0;j<rows;j++) for(let i=0;i<columns;i++) {
+    const a=j*stride+i,b=a+1,c=a+stride,d=c+1;
+    if(forward) {quad(a,b,d,c);quad(a+layerSize,c+layerSize,d+layerSize,b+layerSize);}
+    else {quad(a,c,d,b);quad(a+layerSize,b+layerSize,d+layerSize,c+layerSize);}
+  }
+  const boundary:number[]=[];
+  for(let i=0;i<columns;i++)boundary.push(i);
+  for(let j=0;j<rows;j++)boundary.push(j*stride+columns);
+  for(let i=columns;i>0;i--)boundary.push(rows*stride+i);
+  for(let j=rows;j>0;j--)boundary.push(j*stride);
+  if(!forward)boundary.reverse();
+  for(let i=0;i<boundary.length;i++) {
+    const a=boundary[i],b=boundary[(i+1)%boundary.length];
+    const topA=new THREE.Vector3().fromArray(positions,a*3),topB=new THREE.Vector3().fromArray(positions,b*3);
+    const bottomA=topA.clone().sub(thickness),bottomB=topB.clone().sub(thickness);
+    const n=bottomA.clone().sub(topA).cross(bottomB.clone().sub(topA)).normalize(),start=positions.length/3;
+    for(const p of [topA,bottomA,bottomB,topB]) {positions.push(...p.toArray());normals.push(...n.toArray());}
+    uvs.push(0,0,0,1,1,1,1,0);quad(start,start+1,start+2,start+3);
+  }
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+  geometry.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));
+  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+  geometry.setIndex(indices);return geometry;
+}
 
 // Static furnishings are merged by material; the original meshes remain the audit's physical evidence.
 function batchFurnishings(source: THREE.Group) {
@@ -59,16 +109,42 @@ export function createCommunity(controller: THREE.Group) {
     for(const px of [-length*.4,length*.4]) box(b,palette.dark,[.015,.22,.015],[px,.13,-.08],.002);
   }
   function stool(x:number,y:number,z:number) { cylinder(scenery,palette.wood,.061,.028,x,y+.121,z); cylinder(scenery,palette.dark,.025,.105,x,y+.052,z); }
-  function cup(x:number,y:number,z:number) { cylinder(scenery,palette.cream,.021,.032,x,y+.016,z); cylinder(scenery,palette.dark,.017,.003,x,y+.034,z); }
-  function table(x:number,y:number,z:number,radius=.14) { cylinder(scenery,palette.cream,radius,.028,x,y+.20,z); cylinder(scenery,palette.dark,.022,.19,x,y+.095,z); cup(x-.05,y+.216,z); cup(x+.05,y+.216,z+.035); }
+  function cup(x:number,y:number,z:number) {
+    const profile=[[0,0],[.017,0],[.021,.004],[.021,.032],[.0205,.0355],[.0175,.0355],[.017,.031],[.017,.006],[0,.006]].map(([r,h])=>new THREE.Vector2(r,h));
+    solid(new THREE.LatheGeometry(profile,24),palette.ceramic,scenery,x,y,z);
+    solid(new THREE.CylinderGeometry(.0168,.0168,.001,24),palette.dark,scenery,x,y+.032,z);
+  }
+  function table(x:number,y:number,z:number,radius=.14) { cylinder(scenery,palette.ceramic,radius,.028,x,y+.20,z); cylinder(scenery,palette.dark,.022,.19,x,y+.095,z); cup(x-.05,y+.216,z); cup(x+.05,y+.216,z+.035); }
+  function closedBook(size:[number,number,number],position:[number,number,number],name:string) {
+    const [width,height,depth]=size,cover=Math.min(.002,height*.16);
+    const pages=solid(new THREE.BoxGeometry(width-.004,height-cover*2,depth-.004),palette.paper,scenery,...position);
+    pages.name=name;
+    for(const side of [-1,1]) solid(new THREE.BoxGeometry(width,cover,depth),palette.yellow,pages,0,side*(height-cover)/2,0);
+    solid(new THREE.BoxGeometry(.002,height,depth),palette.yellow,pages,-width/2+.001,0,0);
+    return pages;
+  }
 
   // Button-side café: counter, striped canopy, espresso machine and an intimate table.
   box(scenery,palette.coral,[.80,.21,.18],[-1.85,FACE+.105,-2.59],.025);
-  box(scenery,palette.cream,[.87,.03,.25],[-1.85,FACE+.225,-2.59],.016);
+  box(scenery,palette.ceramic,[.87,.03,.25],[-1.85,FACE+.225,-2.59],.016);
   for(const x of [-2.28,-1.42]) for(const z of [-3.02,-2.33]) pole(x,FACE,z,.61);
+  function canopyHeight(x:number,z:number) {
+    const u=THREE.MathUtils.clamp((x+2.28)/.86,0,1),v=THREE.MathUtils.clamp((z+3.02)/.69,0,1);
+    return FACE+.612-.024*Math.sin(Math.PI*u)-.014*Math.sin(Math.PI*v);
+  }
   for(let i=0;i<8;i++) {
-    box(scenery,i%2?palette.cream:palette.coral,[.112,.027,.78],[-2.24+i*.112,FACE+.615,-2.675],.008);
-    box(scenery,i%2?palette.cream:palette.coral,[.112,.07,.025],[-2.24+i*.112,FACE+.58,-2.285],.006);
+    const material=i%2?palette.fabricCream:palette.fabricCoral,left=-2.296+i*.112;
+    const roof=clothGeometry(4,12,(u,v)=> {
+      const x=left+u*.112,z=-3.065+v*.78;
+      const seam=.0012*Math.pow(Math.cos(Math.PI*u),8);
+      return new THREE.Vector3(x,canopyHeight(x,z)+seam,z);
+    },new THREE.Vector3(0,.006,0));
+    solid(roof,material,scenery).name='cafe-fabric-roof-'+i;
+    const hem=clothGeometry(4,6,(u,v)=> {
+      const x=left+u*.112;
+      return new THREE.Vector3(x,canopyHeight(x,-2.285)-v*.040,-2.285+.006*Math.pow(v,6));
+    },new THREE.Vector3(0,0,.004));
+    solid(hem,material,scenery).name='cafe-fabric-hem-'+i;
   }
   box(scenery,palette.dark,[.15,.11,.13],[-2.08,FACE+.295,-2.60],.012);
   box(scenery,palette.glass,[.09,.047,.007],[-2.08,FACE+.31,-2.53],.005);
@@ -81,7 +157,7 @@ export function createCommunity(controller: THREE.Group) {
   bench(2.24,FACE,.145,-Math.PI/2,.73);
   table(1.91,FACE,.15,.135); stool(1.58,FACE,.18);
   plant(2.15,FACE,1.10,true); plant(2.27,FACE,-.57);
-  box(scenery,palette.yellow,[.07,.025,.055],[2.21,FACE+.15,.475],.004).name='courtyard-bench-book';
+  closedBook([.07,.025,.055],[2.21,FACE+.15,.475],'courtyard-bench-book');
 
   // Two low homes use the nearby black packages as their surrounding architecture.
   function home(x:number,z:number,color:THREE.Material) {
@@ -104,10 +180,13 @@ export function createCommunity(controller: THREE.Group) {
   // Laundry, doorstep parcels, a mailbox and a book make the cavity a lived-in place.
   for(const x of [-1.38,-.67]) pole(x,BOARD,6.03,.37,palette.wood);
   line(scenery,palette.cream,[new THREE.Vector3(-1.38,BOARD+.37,6.03),new THREE.Vector3(-.67,BOARD+.37,6.03)],.007);
-  for(let i=0;i<3;i++) box(scenery,[palette.coral,palette.cream,palette.turquoise][i],[.13,.18,.012],[-1.23+i*.2,BOARD+.27,6.03],.004);
+  for(let i=0;i<3;i++) {
+    const cloth=clothGeometry(6,6,(u,v)=>new THREE.Vector3(
+      -.065+u*.13,.097-v*.187,.003*Math.sin(u*Math.PI*3+i*.7)*Math.sin(v*Math.PI/2)),new THREE.Vector3(0,0,.003));
+    solid(cloth,[palette.fabricCoral,palette.fabricCream,palette.fabricTurquoise][i],scenery,-1.23+i*.2,BOARD+.27,6.03);
+  }
   box(scenery,palette.wood,[.085,.07,.07],[1.41,BOARD+.035,4.60],.006);
-  const book=box(scenery,palette.yellow,[.065,.013,.08],[-.045,BOARD+.145,5.30],.003);
-  book.name='reading-bench-book';
+  closedBook([.065,.013,.08],[-.045,BOARD+.145,5.30],'reading-bench-book');
 
   // A supported sloped walkway connects the decks; narrow rails preserve the visible opening.
   const rampX=-.32, startZ=2.72,endZ=3.92,drop=FACE-BOARD,angle=Math.atan2(drop,endZ-startZ), thickness=.045;

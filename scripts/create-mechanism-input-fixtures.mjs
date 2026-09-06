@@ -141,7 +141,7 @@ try {
   for (const assembly of assemblies) {
     assembly.setProgress(1); scene.updateMatrixWorld(true);
     const view = views[assembly.id];
-    const openChoices = candidates(assembly, view).filter(choice => {
+    const openChoices = candidates(assembly, view, 1024).filter(choice => {
       const hit = nearest(choice.point, view, rendered);
       return hit && assembly.pickMeshes.includes(hit.object) && hit.point.distanceTo(choice.point) < 1e-5;
     });

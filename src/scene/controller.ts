@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { box, cylinder, extrude, line, ring, solid } from './geometry';
-import { grainedPlastic } from './materials';
+import { brushedMetal, grainedPlastic } from './materials';
 import { batchMechanism, boundedProgress, hingeTravelBound, linearTravelBound, mechanismBox, socketGeometry } from './mechanism-geometry';
 import type { MechanismAssembly } from './mechanism-types';
 import { addFaceButtonMark } from './button-markings';
@@ -21,19 +21,20 @@ export function createController() {
   const charcoal = grainedPlastic('#3a3b3d', .76,.006);
   const side = grainedPlastic('#303235',.8,.003);
   const seam = plastic('#131519');
-  const rubber = grainedPlastic('#2b2d30', .92,.002);
+  const rubber = grainedPlastic('#2b2d30', .78,.0015,.18);
   // A restrained local bounce term keeps recessed rubber readable without lifting the whole scene.
   rubber.emissive.set('#45494d');
-  rubber.emissiveIntensity = .14;
+  rubber.emissiveIntensity = .10;
   const coral = plastic('#fa6450', .52);
   const coralDark = plastic('#c44c3d', .67);
-  const silver = plastic('#a4a7a3', .4, .6);
+  const silver = brushedMetal('#a4a7a3', .29, .82);
   const ink = plastic('#969b99', .76);
-  const gold = plastic('#b3983c', .48, .45);
-  const pcb = plastic('#28664b', .71);
+  const gold = brushedMetal('#b3983c', .34, .72);
+  const pcb = grainedPlastic('#28664b', .57,.0009);
   const trace = plastic('#3d8060', .64, .12);
-  const laminate = plastic('#a2a66d', .76);
+  const laminate = grainedPlastic('#a2a66d', .84,.0007);
   const darkGreen = plastic('#1a4d38', .83);
+  const packageResin = grainedPlastic('#202326',.72,.0006);
 
   function outline(front = -6.7, back = 6.7, inset = 0) {
     const left = -2.55 + inset, right = 2.65 - inset, radius = 1.5 - inset * .3;
@@ -123,14 +124,15 @@ export function createController() {
     const length = z < -3 ? .77 : z < 0 ? 1.0 : .63;
     mechanismBox(railFixed,seam,[.065,.19,length],[-2.815,1.00,z],.015);
     for (let i = 0; i < 6; i++) for (const sign of [-1,1]) {
-      mechanismBox(railFixed,silver,[.036,.060,.029],[-2.803,1.0+sign*.113,z-length*.39+i*length*.156],.004);
+      mechanismBox(railFixed,silver,[.050,.060,.029],[-2.803,1.0+sign*.113,z-length*.39+i*length*.156],.004);
     }
     const dot = solid(new THREE.CylinderGeometry(.023,.023,.008,12),ink,railFixed,-2.853,1.045,z-length*.32); dot.rotation.z=Math.PI/2;
   }
   for (let i = 0; i < 8; i++) {
     const z = -4.88+i*1.075;
-    mechanismBox(railFixed,ceramic,[.058,.064,.13],[-2.810,.821,z],.010);
-    for (const dz of [-.065,.065]) mechanismBox(railFixed,silver,[.061,.066,.021],[-2.810,.821,z+dz],.003);
+    const height=.048+(i%3)*.008,length=.10+(i%3)*.015;
+    mechanismBox(railFixed,ceramic,[.058,height,length],[-2.810,.821,z],.008);
+    for (const dz of [-length/2,length/2]) mechanismBox(railFixed,silver,[.064,height+.003,.019],[-2.810,.821,z+dz],.003);
   }
   for (const z of [-5.25,-2.75,-.25,2.95]) for (const y of [.812,1.180]) {
     const mount = solid(new THREE.CylinderGeometry(.040,.040,.070,16),silver,railFixed,-2.730,y,z); mount.rotation.z=Math.PI/2;
@@ -188,9 +190,9 @@ export function createController() {
 
   // Right Joy-Con: X north, A east, B south, Y west, joystick below.
   for (const [x, z, mark] of [[.45,-5.05,'X'],[1.51,-4,'A'],[.45,-2.95,'B'],[-.61,-4,'Y']] as const) {
-    cylinder(group, seam, .64,.06,x,1.56,z);
-    cylinder(group, rubber, .595,.21,x,1.68,z,.625);
-    cylinder(group, charcoal, .56,.075,x,1.815,z,.59);
+    solid(new THREE.CylinderGeometry(.64,.64,.06,96),seam,group,x,1.56,z);
+    solid(new THREE.CylinderGeometry(.595,.625,.21,96),rubber,group,x,1.68,z);
+    solid(new THREE.CylinderGeometry(.56,.59,.075,96),charcoal,group,x,1.815,z);
     addFaceButtonMark(group,mark,x,z);
   }
   box(group,seam,[.66,.055,.66],[-1.52,1.56,-5.5],.15);
@@ -212,9 +214,9 @@ export function createController() {
     const groove = mechanismBox(stickShaft,seam,[.025,shaftHeight-.025,.012],[stickX+Math.sin(angle)*.301,(shaftBottom+shaftTop)/2,stickZ+Math.cos(angle)*.301],.003);
     groove.rotation.y = angle;
   }
-  cylinder(stickCap,rubber,1.10,.25,stickX,2.15,stickZ,1.02);
-  ring(stickCap,rubber,.99,.145,stickX,2.29,stickZ);
-  cylinder(stickCap,rubber,.90,.055,stickX,2.255,stickZ);
+  solid(new THREE.CylinderGeometry(1.10,1.02,.25,112),rubber,stickCap,stickX,2.15,stickZ);
+  const capRim=solid(new THREE.TorusGeometry(.99,.145,12,128),rubber,stickCap,stickX,2.29,stickZ);capRim.rotation.x=-Math.PI/2;
+  solid(new THREE.CylinderGeometry(.90,.90,.055,112),rubber,stickCap,stickX,2.255,stickZ);
   ring(stickCap,charcoal,.80,.014,stickX,2.29,stickZ);
   solid(socketGeometry(.43,.43,.305,2.022,2.043),gold,stickCap,stickX,0,stickZ);
   for (let i = 0; i < 4; i++) {
@@ -296,15 +298,27 @@ export function createController() {
   for (let i = 0; i < 8; i++) {
     const z = 3.02 + i * .36;
     const x = -.75 + (i % 3) * .17;
-    line(group, i % 2 ? trace : darkGreen, [new THREE.Vector3(-1.8,.954,z),new THREE.Vector3(x,.954,z),new THREE.Vector3(x+.2,.954,z+.2),new THREE.Vector3(1.7,.954,z+.2)],.012);
-    cylinder(group,gold,.047,.016,-1.82,.957,z);
-    ring(group,laminate,.055,.013,1.77,.96,z+.2);
+    line(group, i % 2 ? trace : darkGreen, [new THREE.Vector3(-1.8,.949,z),new THREE.Vector3(x,.949,z),new THREE.Vector3(x+.2,.949,z+.2),new THREE.Vector3(1.7,.949,z+.2)],.0065);
+    const via=new THREE.LatheGeometry([new THREE.Vector2(.022,0),new THREE.Vector2(.047,0),new THREE.Vector2(.047,.009),new THREE.Vector2(.022,.009),new THREE.Vector2(.022,0)],24);
+    solid(via,gold,group,-1.82,.943,z);
+    const land=new THREE.LatheGeometry([new THREE.Vector2(.025,0),new THREE.Vector2(.055,0),new THREE.Vector2(.055,.008),new THREE.Vector2(.025,.008),new THREE.Vector2(.025,0)],24);
+    solid(land,gold,group,1.77,.943,z+.2);
+  }
+  // A wetted solder toe rises from a thin board-contact pad into each lead, within its old footprint.
+  function solderToe(x:number,z:number,width:number,height:number,depth:number,sign=1) {
+    const shape=new THREE.Shape();shape.moveTo(-width/2,0);shape.lineTo(width/2,0);
+    shape.lineTo(width/2,height);shape.lineTo(width*.10,height);
+    shape.quadraticCurveTo(-width*.12,height*.17,-width/2,.009);shape.closePath();
+    const geometry=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:false,curveSegments:3});
+    geometry.translate(0,0,-depth/2);if(sign<0)geometry.rotateY(Math.PI);
+    return solid(geometry,silver,group,x,.943,z);
   }
   function chip(x:number,z:number,w:number,d:number) {
     box(group,darkGreen,[w+.18,.026,d+.18],[x,.958,z],.016);
-    box(group,seam,[w,.16,d],[x,1.065,z],.035);
-    for (let i=0;i<6;i++) for(const sign of [-1,1]) box(group,silver,[.115,.045,.044],[x+sign*(w/2+.035),.996,z-d*.39+i*d*.156],.005);
-    cylinder(group,ink,.025,.006,x-w*.35,1.15,z-d*.34);
+    const height=w>.8?.16:w>.6?.135:.12;
+    box(group,packageResin,[w,height,d],[x,.971+height/2,z],.025);
+    for (let i=0;i<6;i++) for(const sign of [-1,1]) solderToe(x+sign*(w/2+.035),z-d*.39+i*d*.156,.115,.070,.044,-sign);
+    cylinder(group,ink,.025,.006,x-w*.35,.974+height,z-d*.34);
   }
   chip(.81,3.45,1.16,.83); chip(.95,5.30,.68,.58); chip(-1.15,5.4,.49,.54);
   for (const [x,z] of [[-1.15,3.31],[-.44,4.6]]) {
@@ -316,9 +330,10 @@ export function createController() {
   for (let i=0;i<20;i++) {
     const x = i < 10 ? 1.63 : -1.72;
     const z = 3.1+(i%10)*.245;
-    box(group,i%3===0?silver:laminate,[.16,.08,.10],[x,1.003,z],.006);
-    box(group,silver,[.04,.087,.105],[x-.062,1.008,z],.004);
-    box(group,silver,[.04,.087,.105],[x+.062,1.008,z],.004);
+    const width=.128+(i%3)*.016,height=.048+(i%4)*.010,depth=.072+(i%3)*.012;
+    mechanismBox(group,i%3===0?silver:laminate,[width,height,depth],[x,.948+height/2,z],.006);
+    solderToe(x-width*.38,z,.040,height+.008,depth+.005,1);
+    solderToe(x+width*.38,z,.040,height+.008,depth+.005,-1);
   }
   for (const [x,z] of [[-1.61,5.94],[1.71,5.74],[1.82,2.85]]) { ring(group,gold,.12,.035,x,.969,z); cylinder(group,seam,.082,.035,x,.95,z); }
 

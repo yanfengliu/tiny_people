@@ -26,8 +26,8 @@ const skin = ['#e7b38e', '#bc825f', '#85543f', '#f0cbb0', '#c89572', '#654538'];
 const hair = ['#43332e', '#302c2c', '#9b7150', '#ddd3bd', '#7d4c34'];
 
 /** Smooth, source-defined rings retain flat end caps where contact matters. */
-function ringGeometry(rings: { y: number; x: number; z: number; toe?: number }[], rounded = false) {
-  const vertices: number[] = [], indices: number[] = [], segments = 20;
+function ringGeometry(rings: { y: number; x: number; z: number; toe?: number }[], rounded = false, segments = 20) {
+  const vertices: number[] = [], indices: number[] = [];
   for (const ring of rings) for (let i = 0; i < segments; i++) {
     const angle = i / segments * Math.PI * 2, cosine = Math.cos(angle), sine = Math.sin(angle);
     vertices.push(Math.sign(cosine) * Math.abs(cosine) ** (rounded ? .7 : 1) * ring.x,
@@ -52,14 +52,28 @@ function ringGeometry(rings: { y: number; x: number; z: number; toe?: number }[]
   return geometry;
 }
 
+// Source-defined form and broad local shading share the same cloth or hair surface.
+function contoured(geometry: THREE.BufferGeometry, shape: (point: THREE.Vector3) => number) {
+  const positions = geometry.attributes.position, point = new THREE.Vector3(), shades: number[] = [];
+  for (let i = 0; i < positions.count; i++) {
+    point.fromBufferAttribute(positions, i);
+    const shade = shape(point);
+    positions.setXYZ(i, point.x, point.y, point.z);
+    shades.push(shade, shade, shade);
+  }
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(shades, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 /** Material-specific batches share anatomy and props; supplied poses own animation. */
 export function createResidents(count: number) {
   if (!Number.isInteger(count) || count < 1) throw new Error('Resident capacity must be a positive integer.');
   const group = new THREE.Group();
   group.name = 'tiny-residents';
-  const fabric = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .84 });
+  const fabric = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .88, vertexColors: true });
   const skinMaterial = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .55 });
-  const hairMaterial = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .39 });
+  const hairMaterial = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .36, vertexColors: true });
   const shoeMaterial = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .47 });
   const paperMaterial = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .77 });
   const ceramicMaterial = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .27, vertexColors: true });
@@ -77,10 +91,25 @@ export function createResidents(count: number) {
     return { mesh, used: 0 };
   }
 
-  const clothes = batch('resident-clothes', ringGeometry([
-    { y: -.5, x: .39, z: .45 }, { y: -.35, x: .39, z: .48 }, { y: .05, x: .44, z: .5 },
-    { y: .36, x: .5, z: .45 }, { y: .45, x: .46, z: .40 }, { y: .5, x: .24, z: .30 },
-  ], true), 2);
+  const clothes = batch('resident-clothes', contoured(ringGeometry([
+    { y: -.5, x: .40, z: .44 }, { y: -.44, x: .445, z: .48 },
+    { y: -.36, x: .43, z: .46 }, { y: -.28, x: .395, z: .43 },
+    { y: -.20, x: .40, z: .46 }, { y: -.12, x: .415, z: .50 },
+    { y: -.03, x: .435, z: .52 }, { y: .06, x: .46, z: .51 },
+    { y: .15, x: .48, z: .50 }, { y: .25, x: .50, z: .49 },
+    { y: .34, x: .49, z: .46 }, { y: .40, x: .43, z: .40 },
+    { y: .46, x: .32, z: .32 }, { y: .5, x: .24, z: .28 },
+  ], true, 24), point => {
+    const x = point.x / .5, face = Math.min(1, Math.abs(point.z) / .35);
+    const fade = Math.max(0, 1 - Math.abs(x) ** 3) * face;
+    // Two oblique compression folds cross the lower back; the front gathers above the hem.
+    const line = point.z < 0 ? -.18 + x * .22 : -.29 - x * .16;
+    const distance = (point.y - line) / .075;
+    const fold = distance * Math.exp(-distance * distance) * fade;
+    const upper = Math.exp(-(((point.y - .12 + x * .15) / .085) ** 2)) * fade;
+    if (Math.abs(point.y) < .49) point.z += Math.sign(point.z) * (.22 * fold + (point.z < 0 ? .055 * upper : 0));
+    return .965 + fold * .14 - upper * .025;
+  }), 2);
   const skinGeometry = new THREE.SphereGeometry(1, 16, 12);
   const skinPositions = skinGeometry.attributes.position;
   for (let i = 0; i < skinPositions.count; i++) {
@@ -89,17 +118,51 @@ export function createResidents(count: number) {
   }
   skinGeometry.computeVertexNormals();
   const rounds = batch('resident-skin', skinGeometry, 32, skinMaterial);
-  const limbs = batch('resident-limbs', new THREE.CylinderGeometry(.74, 1, 1, 12, 3), 10);
-  const fabricDetails = batch('resident-fabric-details', new THREE.SphereGeometry(1, 12, 8), 16);
-  const hairGeometry = new THREE.SphereGeometry(1, 20, 12, 0, Math.PI * 2, 0, Math.PI * .65);
-  const hairPositions = hairGeometry.attributes.position;
-  for (let i = 0; i < hairPositions.count; i++) {
-    const y = hairPositions.getY(i), z = hairPositions.getZ(i);
-    hairPositions.setY(i, y + Math.max(0, z) * Math.max(0, .6 - y) * .65);
-  }
-  hairGeometry.computeVertexNormals();
+  const limbs = batch('resident-limbs', contoured(ringGeometry([
+    { y: -.5, x: 1, z: 1 }, { y: -.39, x: 1.06, z: .98 },
+    { y: -.25, x: 1.10, z: .97 }, { y: -.08, x: 1.03, z: .94 },
+    { y: .08, x: .94, z: .88 }, { y: .20, x: 1.02, z: .91 },
+    { y: .30, x: .84, z: .80 }, { y: .39, x: .91, z: .84 },
+    { y: .5, x: .84, z: .80 },
+  ], false, 14), point => {
+    const side = Math.abs(point.x), bend = Math.exp(-(((point.y - .20) / .15) ** 2));
+    // Compression is stronger on one side of a joint, rather than a ring around the limb.
+    point.y += .055 * point.x * bend;
+    point.x *= 1 + .045 * Math.sign(point.z) * bend;
+    return .965 - side * bend * .06;
+  }), 10);
+  const cuffs = batch('resident-cuffs', contoured(new THREE.LatheGeometry([
+    new THREE.Vector2(.88, -.5), new THREE.Vector2(1, -.25), new THREE.Vector2(1, .25),
+    new THREE.Vector2(.91, .5), new THREE.Vector2(.80, .5), new THREE.Vector2(.80, -.35), new THREE.Vector2(.88, -.5),
+  ], 14), point => {
+    point.y += point.x * .14;
+    return .98;
+  }), 4);
+  const propGeometry = new THREE.CylinderGeometry(.74, 1, 1, 12, 3);
+  propGeometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(propGeometry.attributes.position.count * 3).fill(1), 3));
+  const propParts = batch('resident-prop-parts', propGeometry, 4);
+  const fabricDetails = batch('resident-fabric-details', contoured(new THREE.SphereGeometry(1, 12, 8), point => {
+    const fold = Math.sin(Math.atan2(point.z, point.x) * 3) * (1 - point.y * point.y);
+    point.x *= 1 + fold * .025;
+    point.z *= 1 - fold * .025;
+    return .98 + fold * .015;
+  }), 16);
+  const hairGeometry = new THREE.SphereGeometry(1, 24, 14, 0, Math.PI * 2, 0, Math.PI * .65);
+  contoured(hairGeometry, point => {
+    const y = point.y, z = point.z, angle = Math.atan2(z, point.x), sides = 1 - y * y;
+    point.y += Math.max(0, z) * Math.max(0, .6 - y) * .65;
+    // A swept fringe and softly uneven temple line leave the accepted crown height untouched.
+    point.x += .11 * Math.max(0, z) * sides;
+    point.z *= 1 + .08 * Math.sin(angle * 3 + y * 2) * sides;
+    return .92 + .075 * Math.cos(angle * 2 - y * 2) * sides;
+  });
   const hairCaps = batch('resident-hair', hairGeometry, 1, hairMaterial);
-  const hairDetails = batch('resident-hair-details', new THREE.SphereGeometry(1, 12, 8), 4, hairMaterial);
+  const hairDetails = batch('resident-hair-details', contoured(new THREE.SphereGeometry(1, 12, 8), point => {
+    const wave = Math.sin(Math.atan2(point.z, point.x) * 3 + point.y) * (1 - point.y * point.y);
+    point.x *= 1 + wave * .035;
+    point.z *= 1 - wave * .035;
+    return .96 + wave * .025;
+  }), 7, hairMaterial);
   const shoes = batch('resident-shoes', ringGeometry([
     { y: -.5, x: .46, z: .5 }, { y: -.32, x: .5, z: .5 },
     { y: .14, x: .45, z: .46, toe: .08 }, { y: .5, x: .30, z: .33, toe: .25 },
@@ -115,7 +178,7 @@ export function createResidents(count: number) {
   const cupGeometry = mergeGeometries([cupBody, cupHandle, coffee])!;
   cupBody.dispose(); cupHandle.dispose(); coffee.dispose();
   const cups = batch('resident-cups', cupGeometry, 1, ceramicMaterial);
-  const batches = [clothes, rounds, limbs, fabricDetails, hairCaps, hairDetails, shoes, books, cups];
+  const batches = [clothes, rounds, limbs, cuffs, propParts, fabricDetails, hairCaps, hairDetails, shoes, books, cups];
   const matrix = new THREE.Matrix4();
   const position = new THREE.Vector3();
   const size = new THREE.Vector3();
@@ -150,7 +213,7 @@ export function createResidents(count: number) {
     direction.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
     const length = direction.length();
     localRotation.setFromUnitVectors(up, direction.multiplyScalar(1 / length));
-    return part(target, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], [radius, target === limbs ? length : length / 2 + radius * .3, radius], tint, localRotation);
+    return part(target, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], [radius, target === limbs || target === propParts ? length : length / 2 + radius * .3, radius], tint, localRotation);
   }
 
   function update(poses: ResidentPose[]) {
@@ -186,8 +249,8 @@ export function createResidents(count: number) {
       part(clothes, [sway, hip + .058, lean], [.080 * breadth, .106, .044], shirt);
       // Keep the hip joints within the trousers; the full thighs carry the outer silhouette.
       for (const side of [-1, 1]) part(fabricDetails, [side * .012, hip - .001, -.003], [.016 * breadth, .014, .016], pants);
-      const shirtTrim = color.set(shirt).multiplyScalar(.82).getStyle();
-      const pantTrim = color.set(pants).multiplyScalar(.8).getStyle();
+      const shirtTrim = color.set(shirt).multiplyScalar(.96).getStyle();
+      const pantTrim = color.set(pants).multiplyScalar(.98).getStyle();
       part(fabricDetails, [sway, hip + .009, lean], [.027, .0015, .018], shirt);
       for (const side of [-1, 1]) part(fabricDetails, [side * .007 + sway, hip + .107, lean + .009], [.009, .0023, .006], variant % 3 === 0 ? '#ebe4d2' : shirtTrim);
 
@@ -218,12 +281,12 @@ export function createResidents(count: number) {
         const knee: Point = [side * .020, pose.seated ? hip : .105 + lift * .45, pose.seated ? .102 : step * .5 + .012];
         bone([side * .020, hip - .002, 0], knee, .014 * breadth, pants);
         bone(knee, ankle, .011 * breadth, pants);
-        part(fabricDetails, knee, [.0115 * breadth, .0115, .0115], pants);
-        part(fabricDetails, [ankle[0], ankle[1] + .002, ankle[2]], [.0083, .0027, .0083], pantTrim);
+        part(fabricDetails, knee, [.0115 * breadth, .0095, .0115], pants);
+        part(cuffs, [ankle[0], ankle[1] + .002, ankle[2]], [.0092 * breadth, .004, .0090 * breadth], pantTrim, localRotation);
         part(rounds, [ankle[0], ankle[1] - .004, ankle[2]], [.0055, .007, .0058], complexion);
         part(shoes, foot, [.025, .014, .050], variant % 3 === 0 ? '#e7e0cf' : '#383b3a', shoeRotation);
 
-        const shoulder: Point = [side * .034 * breadth + sway, hip + .098, lean];
+        const shoulder: Point = [side * .034 * breadth + sway, hip + .096, lean];
         let elbow: Point = [side * .046, hip + .043, lean - stride * side * .017];
         let hand: Point = [side * .044, hip - .012, lean - stride * side * .028];
         if (pose.seated) {
@@ -252,9 +315,9 @@ export function createResidents(count: number) {
           hand = propPoint(side === 1 ? [.0162, .0004, 0] : [-.010, -.005, 0]);
         }
         const sleeve: Point = shoulder.map((value, index) => value + (elbow[index] - value) * .54) as Point;
-        bone(shoulder, sleeve, .0115 * breadth, shirt);
-        part(fabricDetails, shoulder, [.011 * breadth, .011, .011], shirt);
-        part(fabricDetails, sleeve, [.009, .003, .009], shirtTrim);
+        bone(shoulder, sleeve, .013 * breadth, shirt);
+        part(fabricDetails, shoulder, [.0125 * breadth, .009, .0115], shirt);
+        part(cuffs, sleeve, [.0109 * breadth, .004, .0105 * breadth], shirtTrim, localRotation);
         bone(sleeve, elbow, .0081 * breadth, complexion, rounds);
         part(rounds, elbow, [.0076, .0076, .0076], complexion);
         direction.set(hand[0] - elbow[0], hand[1] - elbow[1], hand[2] - elbow[2]).normalize();
@@ -287,9 +350,9 @@ export function createResidents(count: number) {
         record.held.push(part(rounds, [0, canY, .108], [.023, .023, .020], canColor));
         record.held.push(part(rounds, [0, canY + .022, .108], [.010, .002, .007], '#296779'));
         // A short spout and handle stay within a .065-long hand-held silhouette.
-        record.held.push(bone([0, canY + .005, .124], [0, canY + .020, .139], .004, canColor));
-        record.held.push(bone([-.024, canY - .010, .083], [.024, canY - .010, .083], .003, canColor));
-        for (const side of [-1, 1]) record.held.push(bone([side * .024, canY - .010, .083], [side * .019, canY + .004, .104], .003, canColor));
+        record.held.push(bone([0, canY + .005, .124], [0, canY + .020, .139], .004, canColor, propParts));
+        record.held.push(bone([-.024, canY - .010, .083], [.024, canY - .010, .083], .003, canColor, propParts));
+        for (const side of [-1, 1]) record.held.push(bone([side * .024, canY - .010, .083], [side * .019, canY + .004, .104], .003, canColor, propParts));
         const endpoint: Point = pose.waterTarget
           ? [(cosine * (pose.waterTarget[0] - pose.x) - sine * (pose.waterTarget[2] - pose.z)) / scale, (pose.waterTarget[1] - pose.y) / scale, (sine * (pose.waterTarget[0] - pose.x) + cosine * (pose.waterTarget[2] - pose.z)) / scale]
           : [0, canY + .019 - .14, .204];
@@ -309,6 +372,12 @@ export function createResidents(count: number) {
       part(rounds, [sway, hip + .114, lean], [.0069, .009, .007], complexion);
       record.head = headPart([0, 0, 0], [.0167, .026, .019], complexion);
       headPart([0, .001, -.001], [.0172, .027, .0197], hairColor, hairCaps);
+      const hairShade = color.set(hairColor).multiplyScalar(.84).getStyle();
+      // Broad overlapping locks reveal a part and an asymmetric swept mass without raising the crown.
+      headPart([-.007, .016, .008], [.0105, .009, .0135], hairColor, hairDetails);
+      headPart([.010, .010, -.002], [.0085, .014, .014], hairShade, hairDetails);
+      if (variant % 4 === 1) headPart([-.015, -.004, -.006], [.006, .019, .013], hairColor, hairDetails);
+      else if (variant % 4 === 3) headPart([-.012, .009, -.010], [.009, .013, .012], hairShade, hairDetails);
       headPart([0, -.001, .0178], [.0018, .004, .0031], complexion);
       headPart([0, -.003, .0197], [.0024, .0024, .0029], complexion);
       record.mouth = headPart([0, -.0105, .0166], [.0031, .0008, .001], complexion);

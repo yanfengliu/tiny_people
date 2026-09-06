@@ -204,6 +204,9 @@ export function createMechanismClearance(assemblies: MechanismAssembly[], commun
   const volumeMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
   const volumeRotation = new THREE.Quaternion();
   const fixedCertificates = new WeakMap<MovingSample, WeakMap<THREE.Mesh, { world: THREE.Matrix4; hit: boolean; contact?: ClearanceBlocker['contact'] }>>();
+  // Each route bounds object and sampled piece (including its inflation) is private and immutable.
+  // Key by the route obstacle, never the shared volumeMesh used for both routes and live residents.
+  const routeCertificates = new WeakMap<MovingSample, WeakMap<Obstacle, { hit: boolean; contact?: ClearanceBlocker['contact'] }>>();
 
   function obstacles(envelope: THREE.Box3, includeInternals: boolean): Obstacle[] {
     community.scenery.updateWorldMatrix(true, true); community.group.updateWorldMatrix(true, true);
@@ -257,6 +260,18 @@ export function createMechanismClearance(assemblies: MechanismAssembly[], commun
             }
             if (!certificate.hit) continue;
             contact = certificate.contact;
+          } else if (candidate.kind === 'route') {
+            let certificates = routeCertificates.get(piece);
+            if (!certificates) { certificates = new WeakMap(); routeCertificates.set(piece, certificates); }
+            let certificate = certificates.get(candidate);
+            if (!certificate) {
+              volumeMesh.matrixWorld.compose(candidate.bounds.getCenter(center), volumeRotation, candidate.bounds.getSize(halfSize));
+              const hit = meshesNear(piece.mesh, volumeMesh, interval.inflation, (point, reason) => { contact = { point: point.toArray(), reason }; });
+              certificate = { hit, contact }; certificates.set(candidate, certificate);
+            }
+            if (!certificate.hit) continue;
+            // Returned witnesses must not expose the private cached contact to caller mutation.
+            contact = certificate.contact && { point: [...certificate.contact.point], reason: certificate.contact.reason };
           } else {
             volumeMesh.matrixWorld.compose(candidate.bounds.getCenter(center), volumeRotation, candidate.bounds.getSize(halfSize));
             if (!meshesNear(piece.mesh, volumeMesh, interval.inflation, (point, reason) => { contact = { point: point.toArray(), reason }; })) continue;

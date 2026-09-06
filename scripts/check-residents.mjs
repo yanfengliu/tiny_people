@@ -1,6 +1,7 @@
 // harness: Inspect actual transformed resident mesh vertices, independently of community route/support checks.
 // Bounds: 26 residents, 7 slope pairs, 4 headings, 16 gait phases; all 7 body scales seated; 32 watering frames.
 // Seat dimensions and the .025 stride-lift ceiling are acceptance inputs, not imported implementation constants.
+// Every vertexColors batch requires matching finite geometry colors; missing/short/nonfinite mutations must fail.
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createServer } from 'vite';
@@ -37,6 +38,24 @@ function assertFiniteCapacity() {
     for (const value of mesh.instanceMatrix.array) assert.ok(Number.isFinite(value), `${mesh.name} has a nonfinite transform.`);
     for (const value of mesh.instanceColor?.array ?? []) assert.ok(Number.isFinite(value), `${mesh.name} has a nonfinite color.`);
   }
+}
+
+function assertVertexColors() {
+  const batches = [];
+  residents.group.traverse(mesh => {
+    if (!mesh.isMesh || !(Array.isArray(mesh.material) ? mesh.material : [mesh.material]).some(material => material.vertexColors)) return;
+    const positions = mesh.geometry.getAttribute('position'), colors = mesh.geometry.getAttribute('color');
+    assert.ok(colors && (colors.itemSize === 3 || colors.itemSize === 4), `${mesh.name} requires an RGB/RGBA geometry color attribute when vertexColors is enabled.`);
+    assert.equal(colors.count, positions.count, `${mesh.name} color attribute must match every position vertex.`);
+    for (let i = 0; i < colors.count; i++) {
+      const channels = [colors.getX(i), colors.getY(i), colors.getZ(i)];
+      if (colors.itemSize === 4) channels.push(colors.getW(i));
+      assert.ok(channels.every(Number.isFinite), `${mesh.name} color attribute has a nonfinite channel at vertex ${i}.`);
+    }
+    batches.push(mesh);
+  });
+  assert.ok(batches.length > 0, 'Resident geometry must exercise the vertexColors material contract.');
+  return batches;
 }
 
 function partMesh(ref) {
@@ -94,6 +113,22 @@ try {
   const { createResidents } = await vite.ssrLoadModule('/src/scene/residents.ts');
   residents = createResidents(26);
   ownedGroups.push(residents.group);
+  const vertexColorBatches = assertVertexColors();
+  let rejectedColorMutations = 0;
+  for (const mesh of vertexColorBatches) {
+    const geometry = mesh.geometry, original = geometry.getAttribute('color');
+    const short = new THREE.Float32BufferAttribute(new Float32Array((original.count - 1) * 3).fill(1), 3);
+    const nonfinite = original.clone(); nonfinite.setX(0, NaN);
+    for (const replacement of [undefined, short, nonfinite]) {
+      try {
+        if (replacement) geometry.setAttribute('color', replacement);
+        else geometry.deleteAttribute('color');
+        assert.throws(assertVertexColors, /color attribute/, `${mesh.name} must reject invalid actual geometry colors.`);
+        rejectedColorMutations++;
+      } finally { geometry.setAttribute('color', original); }
+    }
+  }
+  assertVertexColors();
   const anatomyMaterials = ['resident-clothes', 'resident-skin', 'resident-hair', 'resident-shoes'].map(name => {
     const mesh = residents.group.getObjectByName(name);
     assert.ok(mesh?.isInstancedMesh, `Missing anatomy batch ${name}.`);
@@ -287,6 +322,7 @@ try {
   console.log(`PASS activities: ${contactSamples} actual hand/prop surface samples, maximum gaps ${JSON.stringify(contactDistances)}, rejected detached-book control; mouth gap ${maximumMouthGap.toFixed(6)}, cup travel ${minimumCupTravel.toFixed(6)}, closed cup underside.`);
   console.log(`PASS watering: ${JSON.stringify(waterTargets)}; maximum soil miss ${maximumWaterMiss.toExponential(2)}.`);
   console.log(`PASS capacity: 26 watering residents across 32 frames, ${waterInstances} instances; full book/cup batches across 24 frames; ${residents.group.children.length} batches/${new Set(residents.group.children.map(mesh => mesh.material)).size} materials, finite transforms and empty/capacity checks.`);
+  console.log(`PASS vertex colors: ${vertexColorBatches.length} actual material batches, ${rejectedColorMutations} missing/mismatched/nonfinite attribute mutations rejected and restored.`);
 } finally {
   const geometries = new Set(), materials = new Set();
   for (const group of ownedGroups) group.traverse(object => { if (object.isMesh) { geometries.add(object.geometry); for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material); } });

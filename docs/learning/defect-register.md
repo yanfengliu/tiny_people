@@ -1,5 +1,13 @@
 # Defect register
 
+## Repeating immutable route collisions exhausted active frames
+
+**Reported symptom:** The normal root phase-nine E gate failed active-minus-baseline mean (1.832667 ms), active p95 (33.3 ms) and slow fraction (66/600 intervals over 30 ms). The original failed run remains retained as F26.
+
+**Investigation and cause:** One profiled diagnosis and bounded actual-route CPU attribution isolated repeated negative triangle checks against immutable route volumes. The profile has tracing overhead and does not establish a hardware GPU cause or a D-to-E regression mechanism. It identifies repeated clearance work worth eliminating without changing coverage.
+
+**Correction and check:** Each clearance instance caches route results by exact sampled piece and private copied route obstacle. Live residents remain uncached; fixed-mesh matrix invalidation remains active, and returned route witnesses are copied. The default full mechanism gate compares actual cached/uncached results, stable entries over 100 warm checks, real resident entry/exit, fixed transforms, returned-contact mutation and fresh lifetime. Wrong shared keys, aliased witnesses and stale residents must each fail their intended control. Source review 28 verifies the uncached comparator retains E’s algorithm. The single normal F gate passes unchanged limits with active p95 17.6 ms, no slow frames and stable resources. Rebuild clearance when route layout or sampled geometry changes; the cache does not claim dynamic-route invalidation.
+
 ## Shared vertex-colored materials require geometry color inputs
 
 **Reported symptom:** Independent phase-nine source review found watering-can parts using a vertex-colored fabric material without the required color attribute (F25). Native color appearance needed a separate check from valid positions and normals.
