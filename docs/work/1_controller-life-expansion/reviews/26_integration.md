@@ -1,0 +1,44 @@
+# Review 26: integration
+
+## Target
+
+Original-checkout candidate E, integrated over documentation HEAD `4ce449934dc1a7f7c81157afde6267760a6f10f9` with unchanged runtime base `a6d7913b964b1a46b0dbbf87f9d8516ea662fc3d`. The immutable source inventory is `ce54d9768689eaebb1a4aed8134132bbcf253c7cb7a0a1222e7af928c45baabd`; the eight-file patch is `686c7dd7cb1b701d8b70a27c7e156d199722f129b3bca9ff1605e68f3205f7b0` and provenance is `875c4c6d90c659ca730dfb0e9c59d0e49251f7895b522ba40b11c595840f056a`. Retained exact inputs and reconstruction are under ignored `output/manager/phase9-integration/candidate-e/`. All 37 frozen hashes, eight actual committed base blobs and eight reconstructed raw targets matched before copying; all 37 root hashes matched afterward. The 29 other raw inputs remain unchanged, including the three historical CR-only differences from Git blobs.
+
+The copied increment is six scene modules (`community`, `controller`, `environment`, `materials`, `plants`, `residents`) and the resident/fixture scripts. Canonical plans, authored reports, policies, README/showcase, reference, license and Git history were preserved. Subsequent history-only document updates receive a separate final inventory; they do not change the sampled runtime.
+
+## Reviewers and coverage
+
+`/root/delivery_integration` owns mechanical integration, original-checkout gates, native integration inspection, process evidence and Git hygiene. This is integration coverage, not another independent implementation review. Independent source rounds 20/22/24 and native rounds 21/23/25 retain their exact targets and original reports. Manager `/root` separately accepted the root hero and café images at original resolution. The delivery owner individually inspected hero, courtyard, café and circuit homes at native size.
+
+## Reports
+
+### `/root/delivery_integration`
+
+The actual diff preserves HDR exposure 0.94, IDs/routes, occupied supports, input state and the existing three mechanisms. It adds source-defined material fields and analytic reflection response, botanical growth variation, thin draped cloth, finer electronic contacts and visible clothing/hair forms. E supplies the white RGB geometry input missing from D's watering prop batch. Its new resident assertions preserve all prior contact/capacity checks and reject all 24 actual missing, short and nonfinite attribute mutations across eight colored batches. The endpoint-only fixture candidate limit is 1,024 with unchanged nearest-open/closed-empty predicates; the valid triangle was outside the old 512 bound.
+
+The native root views show readable physical XYAB without page copy, a thin draped café canopy, shaped garments/hair, rooted plants and supported people/furniture around the exposed board. These four integration views complement the independently reviewed before/after and E watering evidence; they do not establish behavior outside the gate samples.
+
+## Findings and disposition
+
+| ID | Finding | Disposition and reason | Repair or follow-up |
+|---|---|---|---|
+| F30 | B's people changes were visually insufficient. | Resolved in focused D review 23; unchanged E form is retained in the integrated native views. | Preserve B rejection and C over-budget intermediate. |
+| F25 | D watering-can parts lacked their material's required color attribute. | Exact E repair accepted by source round 24 and visual round 25; root resident check passes eight batches and 24 mutations. | All functional groups pass; phase acceptance remains pending on the separate timing failure. |
+| F26 | The root active sample exceeds paired mean difference, active p95 and slow-frame fraction limits. | Unresolved. Manager assigned F26 to this exact measured failure; independent assessment is reserved as round 27. | Preserve E source and failed evidence; the implementer owns one profiled diagnosis after the root GPU release. |
+| F21 follow-up | The endpoint fixture search could not reach its valid triangle. | Fixture generation now succeeds with the reviewed endpoint-only bound; no runtime-hover regression was established by the original construction failure. | The normal root input gate completed the endpoint-hover group; its final failure is on timing. |
+
+## Verification
+
+All ten root CPU commands pass: typecheck, production build, audit (zero vulnerabilities), residents, routes, plants, buttons, mechanism state, performance evaluator `--check` and mechanisms. The route gate covers seven routes, 1,089 footprint samples, 17 stationary clearances and 240 seconds of pair separation (minimum 0.212). The mechanism gate covers all three assemblies over 128 conservative intervals each, 2,465,100 vertex samples, eight combined endpoints and twelve activity times, with obstruction mutations rejected and transforms preserved. Cold certificate time was 22,830 ms; its bounded first/warm live checks were 17.775/0.425 ms, not a device-wide frame budget claim. Plant and resident gates retain their defined variant, contact, slope, grip and capacity limits.
+
+Root browser passed 17 views, camera/reset and disabled-control proofs, nine moving walkers, real production pause/WASD/release, and no console/network errors. It measured 521 calls and 1,083,740 triangles. Its 150-frame local sample mean was 16.666667 ms and p95 17.4 ms. Frozen browser evidence is `80b0b4fc652e307f5b1b1c120ec4fd5b3b99b9b42729d6ec870b0a5607a8b10c`, and the 17-image native manifest is `2ff10b1833e3e670cedfbe8fed3e3cf8a3684204359febf15f5424117a4d4ba5`. The wrapper recorded 15 owned identities and zero leftovers.
+
+The first mechanism-input invocation successfully selected fixtures but stopped with ENOENT while writing the new `output/phase9` fixture path; that parent had not been created. No browser or input assertions ran. The integration owner retained all four logs/process records under `fixture-output-failure/`, created only the ignored output parent and made one normal retry. No source, predicate or assertion changed. The failed attempt recorded four owned CPU identities and zero leftovers. The retry's generated fixture is `53e81605ac98382ccbc079a1baf501a796762e03eda3cfdad3d50da84f71589d`.
+
+The normal retry completed all 18 behavior groups and 33 captures, with no console/runtime/network errors and unchanged source/build, but exited 1 on three timing criteria. Evidence is `310d92d1d75540835c462bc3412de1de8789c99452f9921f3455fa74ca0b4f00`. Baseline150 mean/p95/max was 16.667333/16.8/17.5 ms, with no interval above 30 ms. Active600 mean/p95/max was 18.5/33.3/33.5 ms, paired mean difference 1.832667 ms, and 66/600 intervals above 30 ms (11%). The failed limits are paired difference <=1 ms, active p95 <=20 ms and slow fraction <=5%. Its 599 moving frames and 17 commands satisfy the activity checks. The 521-call/1,083,740-triangle limits pass. After warming all three mechanisms, 100 real rail cycles/200 commands preserve 270 geometries, 18 textures and 14 programs; these are not 100 cycles per mechanism. No dedicated picking-cost p95 or contemporaneous external CPU-load telemetry was collected, so no cause is assigned. The original failure and all 35 output files remain bound by the retained failure manifest. No repeated render or threshold change was made after the actual timing failure.
+
+Exploration then passed 13 groups, 18 measured translations and six captures, including keyboard/pause, reduced motion and graphics/lifecycle cases. Its evidence is `3e1af5024f28d78a796d503340403b588fbd02f5a5e467be2f4d1e83dbf7cf1f`. Actual history navigation and synthetic persisted-event coverage remain separate. Installed Chrome was used with the executable override unset throughout. The final read-only scan checked 59 PID-plus-UTC-creation-time identities across the four attempts, found zero task-owned leftovers and zero workspace browser/server candidates, and preserved unrelated later bash PID 38516 reuse. Cleanup evidence is `288e07b055c9765a364d63e221b1992b0e2cd2fdc376977436dbc2df78dbc3e1`. All 37 E inputs still matched after the full sampling sequence, before history-only documentation updates. The usual unsuppressed Vite entry-size advisory remains; production JavaScript is 659.93 kB minified / 176.43 kB gzip. No extra browser run or quality reduction is requested from this advisory.
+
+## Round outcome
+
+E is mechanically integrated and its scoped implementation/source/native findings are resolved. Twelve root commands pass, while the normal mechanism-input run fails three active-timing criteria. Whole-phase acceptance and any code checkpoint remain pending on F26. The manager assigned independent assessment to round 27 and one profiled diagnosis to the separate implementer; this report preserves the original failed root outcome. Original failure/review evidence stays retained. Public pushing remains separately blocked by automatic approval review pending specific public-disclosure approval; this round schedules no push attempt.

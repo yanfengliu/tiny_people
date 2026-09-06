@@ -1,5 +1,25 @@
 # Defect register
 
+## Shared vertex-colored materials require geometry color inputs
+
+**Reported symptom:** Independent phase-nine source review found watering-can parts using a vertex-colored fabric material without the required color attribute (F25). Native color appearance needed a separate check from valid positions and normals.
+
+**Investigation and cause:** The new `resident-prop-parts` cylinder inherited the cloth material but was not passed through the helper that supplies per-vertex color. Its 102 position vertices had no matching color entries; instance tint alone did not satisfy that material contract.
+
+**Correction and check:** E supplies white RGB for each existing vertex while preserving positions, normals, batches and cyan instance tint. `check:residents` traverses every vertex-colored material batch, even before population, requiring finite RGB/RGBA data with count matching positions. The new check failed on actual D and passes eight E batches; deleting, shortening or making a channel nonfinite must fail individually in all eight batches (24 controls), with restoration. Source round 24 and native watering round 25 verify their separate scopes. Prior contact/capacity checks remain mandatory.
+
+## Fine shading alone did not make clothing and hair visibly realistic
+
+**Reported symptom:** Matching native phase-nine review found B's people changes too subtle to meet the accepted visible-improvement requirement (F30).
+
+**Correction and check:** Shaped sleeve openings, torso folds, trouser compression and swept hair masses preserve adult proportions and measured contacts. Focused matching native views resolve the visual finding; source descriptions alone do not. An over-budget intermediate remains retained, and reducing angular tessellation preserves the form while returning calls/triangles within the existing limits. Root resident contacts and native garment/hair review remain complementary checks.
+
+## Endpoint fixture selection was bounded before its valid triangle
+
+**Reported symptom:** The mechanism fixture generator could not find an open-only rail endpoint after the realism geometry changed. This was fixture construction failure, not evidence that the earlier runtime-hover defect returned.
+
+**Correction and check:** The first actual valid triangle ranked 764, outside the 512-candidate cutoff. Only the endpoint call now considers 1,024 candidates; nearest-open and closed-empty predicates are unchanged. Normal fixture generation and the real stationary-pointer endpoint group must both pass. Retain the original failed search and exact triangle provenance; increasing search coverage alone does not establish native behavior.
+
 ## Cancelled pointers and instant motion need explicit input bookkeeping
 
 **Reported symptom:** Source review found that cancelling only captured pointer IDs could leave OrbitControls tracking an uncaptured second pointer. A separate hover check could miss a part moving beneath a stationary pointer, especially an instant reduced-motion endpoint. Picking immediately after a camera shortcut could also use the camera's previous world matrix.
