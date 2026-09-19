@@ -4,7 +4,7 @@ A living browser miniature inspired by the supplied Joy-Con reference: 26 tiny r
 
 Residents use adult proportions, tapered limbs, rounded shoes and separate fabric, skin and hair surfaces. Three plant forms combine thin curved leaves and branching stems with open pot rims and recessed granular soil. Their shapes and materials are generated locally from source.
 
-The integrated phase-10 candidate adds deterministic resident choices, reciprocal greetings, one shared café cup, cooperative gardening and individual reactions to real controller openings. Its source and remaining original-checkout verification are tracked in the [current work plan](docs/work/1_controller-life-expansion/plan.md). The behavior and commands below describe that candidate; final acceptance remains separate.
+Residents make deterministic choices, exchange reciprocal greetings, share one café cup, garden cooperatively and react individually to real controller openings. The accepted behavior and its verification bounds are recorded in the [current work plan](docs/work/1_controller-life-expansion/plan.md).
 
 Desktop browsers are the supported target. The canvas follows desktop window resizing; dedicated mobile support and mobile validation are outside the current scope.
 
@@ -78,7 +78,7 @@ The route gate samples all seven routes against the actual static geometry at in
 
 The production build goes to ignored `dist/`. The application uses Vite, TypeScript and Three.js; all geometry and materials are defined in source. No image, external font, model download, or runtime network service is required. The local npm cache lives in ignored `.npm/`.
 
-In the phase-10 candidate, a pure 30 Hz model owns choices, interactions, shared reservations and prop ownership; presentation only translates copied frames into resident and prop geometry. Five supported local approaches supplement the seven existing routes. Circuit pairs keep their supported stationary positions. Gardening guidance precedes preparation, watering, drain, lowering and acknowledgment. Opening reactions can wait until an interaction ends; openings made while life is paused remain queued until life advances.
+A pure 30 Hz model owns choices, interactions, shared reservations and prop ownership; presentation only translates copied frames into resident and prop geometry. Five supported local approaches supplement the seven existing routes. Circuit pairs keep their supported stationary positions. Gardening guidance precedes preparation, watering, drain, lowering and acknowledgment. Opening reactions can wait until an interaction ends; openings made while life is paused remain queued until life advances.
 
 Social history is a versioned life time and complete ordered opening journal, replayed into the deterministic model. It is stored beside the existing mechanism history while preserving unrelated history fields. Camera reset preserves world state, and graphics or persisted-page recovery retains the in-memory model. Actual history navigation and synthetic persisted events remain separate checks. The state/contact checks cover 240 simulated seconds; their detailed geometry sampling and native reviews have their own bounds and do not establish unlimited-duration behavior or all-frame mesh clearance.
 

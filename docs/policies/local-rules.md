@@ -26,4 +26,4 @@ Positive and negative input checks collect adequate observations before assertin
 
 The manager owns the current phased plan and acceptance in the original checkout's `docs/work/1_controller-life-expansion/plan.md`; `docs/work/0_procedural-people-world/plan.md` preserves the accepted baseline. The implementer owns application source and scoped verification. Do not create a competing plan in this worktree.
 
-Commit verified changes early and often. One Git delivery owner commits verified changes and pushes from the original checkout to the configured intended remote. Use normal safe pushes; do not force-push or discard remote work.
+Commit verified changes early and often. One Git delivery owner prepares changes in an isolated worktree, merges the verified branch into main in the original checkout, and handles authorized publication to the configured intended remote. Remove the worktree after its accepted work and retained evidence are integrated. Use normal safe pushes; do not force-push or discard remote work.
