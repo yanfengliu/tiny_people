@@ -15,11 +15,27 @@ export type ResidentPose = {
   groundSlopeX?: number;
   groundSlopeZ?: number;
   waterTarget?: [number, number, number];
+  lean?: number;
+  headRotation?: ResidentPoint;
+  arms?: [ResidentArm, ResidentArm];
 };
 
-type Point = [number, number, number];
+export type ResidentPoint = [number, number, number];
+export type ResidentArm = { elbow: ResidentPoint; hand: ResidentPoint };
+export type SharedResidentProp = {
+  id: string; kind: 'book' | 'cup' | 'water'; owner: number;
+  position: ResidentPoint; quaternion: [number, number, number, number]; scale: number;
+  contacts: { residentId: number; hand: 0 | 1; socket: string }[];
+  drops: ResidentPoint[];
+};
+type Point = ResidentPoint;
 type PartRef = { batch: string; index: number };
 type BodyRecord = { id: number; head?: PartRef; mouth?: PartRef; hands: PartRef[]; held: PartRef[]; heldKind?: 'book' | 'cup' | 'water'; waterDrops: PartRef[] };
+export function residentMetrics(pose: Pick<ResidentPose, 'id' | 'seated'>) {
+  const variant = Math.abs(Math.trunc(pose.id));
+  const scale = .92 + variant % 7 * .027;
+  return { scale, breadth: .95 + variant % 5 * .025, hip: pose.seated ? .135 / scale + .017 : .194 };
+}
 const shirts = ['#f47722', '#ffd529', '#00bdda', '#f6e9cd', '#f35d47', '#0cacc4', '#f5cd26', '#ff8b35'];
 const trousers = ['#08a9ca', '#33434a', '#e99b36', '#f4c834', '#48707a'];
 const skin = ['#e7b38e', '#bc825f', '#85543f', '#f0cbb0', '#c89572', '#654538'];
@@ -176,6 +192,7 @@ export function createResidents(count: number) {
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: geometry.attributes.position.count }, () => [tint.r, tint.g, tint.b]).flat(), 3));
   }
   const cupGeometry = mergeGeometries([cupBody, cupHandle, coffee])!;
+  cupGeometry.userData.gripRanges = { body: [0, cupBody.index!.count], handle: [cupBody.index!.count, cupHandle.index!.count] };
   cupBody.dispose(); cupHandle.dispose(); coffee.dispose();
   const cups = batch('resident-cups', cupGeometry, 1, ceramicMaterial);
   const batches = [clothes, rounds, limbs, cuffs, propParts, fabricDetails, hairCaps, hairDetails, shoes, books, cups];
@@ -190,7 +207,7 @@ export function createResidents(count: number) {
   const groundNormal = new THREE.Vector3();
   const headRotation = new THREE.Quaternion();
   const headOffset = new THREE.Vector3();
-  const propRotation = new THREE.Quaternion(), pageRotation = new THREE.Quaternion(), combinedRotation = new THREE.Quaternion(), propOffset = new THREE.Vector3();
+  const pageRotation = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
   const color = new THREE.Color();
   let pose: ResidentPose;
@@ -203,6 +220,7 @@ export function createResidents(count: number) {
     rotation.copy(residentRotation);
     if (orientation) rotation.multiply(orientation);
     matrix.compose(position, rotation, size);
+    if (target.used >= target.mesh.instanceMatrix.count) throw new Error(`${target.mesh.name} exceeds resident capacity.`);
     const index = target.used++;
     target.mesh.setMatrixAt(index, matrix);
     target.mesh.setColorAt(index, color.set(tint));
@@ -216,21 +234,21 @@ export function createResidents(count: number) {
     return part(target, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], [radius, target === limbs || target === propParts ? length : length / 2 + radius * .3, radius], tint, localRotation);
   }
 
-  function update(poses: ResidentPose[]) {
+  function update(poses: ResidentPose[], props: SharedResidentProp[] = []) {
     if (poses.length > count) throw new Error(`Received ${poses.length} residents, but capacity is ${count}.`);
     for (const batch of batches) batch.used = 0;
     const records: BodyRecord[] = [];
     group.userData.parts = records;
     for (pose of poses) {
       const variant = Math.abs(Math.trunc(pose.id));
-      scale = .92 + variant % 7 * .027;
-      const breadth = .95 + variant % 5 * .025;
+      const metrics = residentMetrics(pose);
+      scale = metrics.scale;
+      const breadth = metrics.breadth;
       const record: BodyRecord = { id: pose.id, hands: [], held: [], waterDrops: [] }; records.push(record);
       const shirt = shirts[variant % shirts.length];
       const pants = trousers[(variant * 3) % trousers.length];
       const complexion = skin[(variant * 5) % skin.length];
       const hairColor = hair[(variant * 3) % hair.length];
-      const t = pose.time + variant * 1.73;
       const stride = pose.walking && !pose.seated ? Math.sin(pose.walkPhase) : 0;
       const active = pose.walking && !pose.seated;
       residentRotation.setFromAxisAngle(up, pose.yaw);
@@ -241,9 +259,8 @@ export function createResidents(count: number) {
       groundNormal.set(-slopeX, 1, -slopeZ).normalize();
       shoeRotation.setFromUnitVectors(up, groundNormal);
       // Adult standing proportions; the seated pelvis still lands exactly on the authored bench.
-      const hip = pose.seated ? .135 / scale + .017 : .194;
-      const activityBase = pose.seated ? hip : .158;
-      const lean = pose.activity === 'water' ? .010 : pose.seated ? .006 : 0;
+      const hip = metrics.hip;
+      const lean = pose.lean ?? (pose.seated ? .006 : 0);
       const sway = active ? Math.sin(pose.walkPhase) * .002 : 0;
       part(clothes, [0, hip, 0], [.069 * breadth, .034, .043], pants);
       part(clothes, [sway, hip + .058, lean], [.080 * breadth, .106, .044], shirt);
@@ -253,22 +270,6 @@ export function createResidents(count: number) {
       const pantTrim = color.set(pants).multiplyScalar(.98).getStyle();
       part(fabricDetails, [sway, hip + .009, lean], [.027, .0015, .018], shirt);
       for (const side of [-1, 1]) part(fabricDetails, [side * .007 + sway, hip + .107, lean + .009], [.009, .0023, .006], variant % 3 === 0 ? '#ebe4d2' : shirtTrim);
-
-      const reading = pose.seated && pose.activity === 'relax';
-      const drinking = pose.seated && pose.activity === 'talk' && (variant === 12 || variant === 16);
-      const sipPhase = (pose.time + variant * .13) % 9;
-      const sip = sipPhase < 4.8 ? THREE.MathUtils.smoothstep(sipPhase, 2, 3.4) : 1 - THREE.MathUtils.smoothstep(sipPhase, 4.8, 6.2);
-      const propCenter: Point = reading ? [0, hip + .040 + Math.sin(t * .7) * .001, .063] : [.007 * (1 - sip), hip + .056 + .071 * sip, .083 - .045 * sip];
-      propRotation.setFromEuler(new THREE.Euler(reading ? -.28 + Math.sin(t * .7) * .012 : -.30 * sip, reading ? Math.sin(t * .5) * .025 : 0, 0));
-      function propPoint(offset: Point): Point {
-        propOffset.set(...offset).applyQuaternion(propRotation);
-        return [propCenter[0] + propOffset.x, propCenter[1] + propOffset.y, propCenter[2] + propOffset.z];
-      }
-      function propPart(target: typeof clothes, offset: Point, dimensions: Point, tint: string, tilt = 0) {
-        pageRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), tilt);
-        combinedRotation.copy(propRotation).multiply(pageRotation);
-        record.held.push(part(target, propPoint(offset), dimensions, tint, combinedRotation));
-      }
 
       for (const side of [-1, 1]) {
         const step = stride * side * .040;
@@ -293,26 +294,12 @@ export function createResidents(count: number) {
           elbow = [side * .042, hip + .052, .031];
           hand = [side * .028, hip + .017, .065];
         }
-        if (!active && pose.activity === 'talk') {
-          const gesture = Math.sin(t * 1.7 + side * .8);
-          elbow = [side * .046, hip + .055, .015];
-          hand = [side * (.041 + gesture * .005), activityBase + .070 + gesture * .012, .049];
-        } else if (!active && pose.activity === 'water') {
-          elbow = [side * .041, hip + .040, .034];
-          hand = [side * .026, activityBase + .043 + Math.sin(t * 1.3) * .005, .083];
-        } else if (!active && pose.activity === 'serve') {
-          elbow = [side * .041, hip + .047, .022];
-          hand = [side * .028, activityBase + .061 + Math.sin(t * 1.4 + side) * .004, .069];
-        } else if (!active && !pose.seated && pose.activity === 'relax' && variant % 2 === 0) {
-          // One hand on a hip; the other rests naturally.
-          if (side === 1) { elbow = [.058, hip + .040, -.006]; hand = [.029, hip + .006, .009]; }
-        }
-        if (reading) {
-          elbow = [side * .040, hip + .054, .025];
-          hand = propPoint([side * .034, .001, .008]);
-        } else if (drinking) {
-          elbow = [side * .035, hip + .050 + sip * .016, .036];
-          hand = propPoint(side === 1 ? [.0162, .0004, 0] : [-.010, -.005, 0]);
+        const explicitArm = pose.arms?.[side === -1 ? 0 : 1];
+        if (explicitArm) {
+          elbow = explicitArm.elbow; hand = explicitArm.hand;
+          const upper = Math.hypot(...elbow.map((value, index) => value - shoulder[index]));
+          const lower = Math.hypot(...hand.map((value, index) => value - elbow[index]));
+          if (![...elbow, ...hand, upper, lower].every(Number.isFinite) || upper > .070001 || lower > .070001) throw new Error(`Resident ${pose.id} exceeds bounded arm length.`);
         }
         const sleeve: Point = shoulder.map((value, index) => value + (elbow[index] - value) * .54) as Point;
         bone(shoulder, sleeve, .013 * breadth, shirt);
@@ -330,41 +317,8 @@ export function createResidents(count: number) {
         part(rounds, [hand[0] - side * .0047, hand[1] + .001, hand[2] + .002], [.003, .005, .003], complexion);
       }
 
-      if (reading) {
-        record.heldKind = 'book';
-        for (const side of [-1, 1]) {
-          propPart(books, [side * .016, .0035, 0], [.034, .002, .049], variant % 2 ? '#cc633f' : '#3d8196', side * .18);
-          propPart(books, [side * .016, .0055, 0], [.031, .0025, .046], '#efe9d7', side * .18);
-        }
-        propPart(books, [0, .002, 0], [.003, .005, .049], '#ac593a');
-      } else if (drinking) {
-        record.heldKind = 'cup';
-        propPart(cups, [0, 0, 0], [.0105, .0125, .0105], '#eee6d5');
-      }
-
-      if (!active && pose.activity === 'water') {
-        record.heldKind = 'water';
-        const motion = Math.sin(t * 1.3) * .005;
-        const canY = activityBase + .054 + motion;
-        const canColor = '#169fb6';
-        record.held.push(part(rounds, [0, canY, .108], [.023, .023, .020], canColor));
-        record.held.push(part(rounds, [0, canY + .022, .108], [.010, .002, .007], '#296779'));
-        // A short spout and handle stay within a .065-long hand-held silhouette.
-        record.held.push(bone([0, canY + .005, .124], [0, canY + .020, .139], .004, canColor, propParts));
-        record.held.push(bone([-.024, canY - .010, .083], [.024, canY - .010, .083], .003, canColor, propParts));
-        for (const side of [-1, 1]) record.held.push(bone([side * .024, canY - .010, .083], [side * .019, canY + .004, .104], .003, canColor, propParts));
-        const endpoint: Point = pose.waterTarget
-          ? [(cosine * (pose.waterTarget[0] - pose.x) - sine * (pose.waterTarget[2] - pose.z)) / scale, (pose.waterTarget[1] - pose.y) / scale, (sine * (pose.waterTarget[0] - pose.x) + cosine * (pose.waterTarget[2] - pose.z)) / scale]
-          : [0, canY + .019 - .14, .204];
-        for (let drop = 0; drop < 3; drop++) {
-          const fall = ((t * .9 + drop / 3) % 1 + 1) % 1;
-          record.waterDrops.push(part(rounds, [endpoint[0] * fall, (canY + .019) * (1 - fall) + endpoint[1] * fall + .04 * fall * (1 - fall), .144 * (1 - fall) + endpoint[2] * fall], [.0024, .004, .0024], '#86c7d3'));
-        }
-      }
-
       const headCenter: Point = [sway, hip + .143, lean];
-      const look = active ? Math.sin(t * .65) * .12 : Math.sin(t * .8) * (pose.activity === 'relax' ? .42 : .24);
-      headRotation.setFromEuler(new THREE.Euler(reading ? .65 + Math.sin(t * .7) * .012 : drinking ? .10 - .16 * sip : pose.activity === 'water' ? .16 : Math.sin(t * 1.2) * .025, reading ? look * .2 : drinking ? look * (1 - sip * .85) : look, Math.sin(t) * .025));
+      headRotation.setFromEuler(new THREE.Euler(...(pose.headRotation ?? [0, 0, 0])));
       function headPart(offset: Point, dimensions: Point, tint: string, target = rounds) {
         headOffset.set(...offset).applyQuaternion(headRotation);
         return part(target, [headCenter[0] + headOffset.x, headCenter[1] + headOffset.y, headCenter[2] + headOffset.z], dimensions, tint, headRotation);
@@ -388,6 +342,44 @@ export function createResidents(count: number) {
       if (variant % 4 === 0) headPart([0, .007, -.021], [.0085, .008, .009], hairColor, hairDetails);
       else if (variant % 4 === 1) headPart([0, -.010, -.012], [.0138, .018, .010], hairColor, hairDetails);
     }
+    const propRecords: { id: string; kind: SharedResidentProp['kind']; owner: number; parts: PartRef[]; contacts: SharedResidentProp['contacts']; waterDrops: PartRef[] }[] = [];
+    const propIds = new Set<string>();
+    for (const prop of props) {
+      if (propIds.has(prop.id)) throw new Error(`Duplicate shared prop ${prop.id}.`);
+      propIds.add(prop.id);
+      const owner = records.find(record => record.id === prop.owner);
+      if (!owner) throw new Error(`Shared prop ${prop.id} has no rendered owner ${prop.owner}.`);
+      if (!Number.isFinite(prop.scale) || prop.scale <= 0 || prop.drops.length > 3) throw new Error(`Invalid shared prop ${prop.id}.`);
+      const emitted = { id: prop.id, kind: prop.kind, owner: prop.owner, parts: [] as PartRef[], contacts: prop.contacts, waterDrops: [] as PartRef[] };
+      propRecords.push(emitted);
+      // Props have their own world transform and size: ownership never rescales a cup.
+      pose = { id: prop.owner, x: prop.position[0], y: prop.position[1], z: prop.position[2], yaw: 0, walking: false, seated: false, walkPhase: 0, activity: 'relax', time: 0 };
+      scale = prop.scale;
+      residentRotation.set(...prop.quaternion);
+      function propPart(target: typeof clothes, offset: Point, dimensions: Point, tint: string, tilt = 0) {
+        pageRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), tilt);
+        emitted.parts.push(part(target, offset, dimensions, tint, pageRotation));
+      }
+      if (prop.kind === 'book') {
+        for (const side of [-1, 1]) {
+          propPart(books, [side * .016, .0035, 0], [.034, .002, .049], prop.owner % 2 ? '#cc633f' : '#3d8196', side * .18);
+          propPart(books, [side * .016, .0055, 0], [.031, .0025, .046], '#efe9d7', side * .18);
+        }
+        propPart(books, [0, .002, 0], [.003, .005, .049], '#ac593a');
+      } else if (prop.kind === 'cup') propPart(cups, [0, 0, 0], [.0105, .0125, .0105], '#eee6d5');
+      else {
+        propPart(rounds, [0, 0, 0], [.023, .023, .020], '#169fb6');
+        propPart(rounds, [0, .022, 0], [.010, .002, .007], '#296779');
+        emitted.parts.push(bone([0, .005, .016], [0, .020, .031], .004, '#169fb6', propParts));
+        emitted.parts.push(bone([-.024, -.010, -.025], [.024, -.010, -.025], .003, '#169fb6', propParts));
+        for (const side of [-1, 1]) emitted.parts.push(bone([side * .024, -.010, -.025], [side * .019, .004, -.004], .003, '#169fb6', propParts));
+      }
+      owner.heldKind = prop.kind; owner.held.push(...emitted.parts);
+      residentRotation.identity(); scale = 1; pose.x = 0; pose.y = 0; pose.z = 0;
+      for (const drop of prop.drops) emitted.waterDrops.push(part(rounds, drop, [.0024, .004, .0024], '#86c7d3'));
+      owner.waterDrops.push(...emitted.waterDrops);
+    }
+    group.userData.props = propRecords;
     for (const batch of batches) {
       batch.mesh.count = batch.used;
       batch.mesh.instanceMatrix.needsUpdate = true;

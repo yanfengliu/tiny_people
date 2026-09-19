@@ -6,6 +6,9 @@ import { createPlant } from './plants';
 import type { ResidentPose } from './residents';
 import { intersectsMeshVolume } from './physical-audit';
 import { directionalWood, glazedCeramic, mattePaper, wovenFabric } from './materials';
+import { createSocialState } from './social-state';
+import { createSocialPresentation } from './social-poses';
+import type { SocialLayout, SocialOpening, SocialPath, SocialPoint, SocialResidentDefinition } from './social-types';
 
 const FACE = 1.55, BOARD = .943;
 const clearance = .085;
@@ -148,7 +151,8 @@ export function createCommunity(controller: THREE.Group) {
   }
   box(scenery,palette.dark,[.15,.11,.13],[-2.08,FACE+.295,-2.60],.012);
   box(scenery,palette.glass,[.09,.047,.007],[-2.08,FACE+.31,-2.53],.005);
-  cup(-1.88,FACE+.24,-2.56); cup(-1.66,FACE+.24,-2.56);
+  // The first counter cup is now the single owned shared-cafe-cup, rendered by the resident presentation.
+  cup(-1.66,FACE+.24,-2.56);
   cylinder(scenery,palette.wood,.058,.045,-1.52,FACE+.27,-2.61);
   table(-1.80,FACE,-3.40,.13); stool(-2.08,FACE,-3.4); stool(-1.51,FACE,-3.4);
   plant(-2.12,FACE,-2.13);
@@ -274,15 +278,76 @@ export function createCommunity(controller: THREE.Group) {
     const slopeZ=((surfaceAt(p.x,p.z+.01)??y)-(surfaceAt(p.x,p.z-.01)??y))/.02;
     return {x:p.x,y,z:p.z,yaw,walking,groundSlopeX:slopeX,groundSlopeZ:slopeZ};
   }
-  let poses:ResidentPose[]=[];
-  function update(time:number) {
-    poses=walkers.map(({route,phase},id)=>({...sampleRoute(routes[route],time,phase),id,walkPhase:time*5.6+id,seated:false,activity:'walk',time}));
-    stationary.forEach(([x,z,yaw,seated,activity],index)=> {
-      const id=index+walkers.length;
-      poses.push({id,x,y:surfaceAt(x,z)??-10,z,yaw,walking:false,walkPhase:0,seated,activity,time,waterTarget:waterTargets.get(id)});
-    });
-    residents.update(poses);
+  function supportedPoint(x:number,z:number):SocialPoint {
+    const y=surfaceAt(x,z)??-10;
+    return {x,y,z,groundSlopeX:((surfaceAt(x+.01,z)??y)-(surfaceAt(x-.01,z)??y))/.02,
+      groundSlopeZ:((surfaceAt(x,z+.01)??y)-(surfaceAt(x,z-.01)??y))/.02};
   }
+  function measuredPath(id:string,points:SocialPoint[],speed:number,loop=false,shuttle=false):SocialPath {
+    const length=points.slice(1).reduce((sum,p,index)=>sum+Math.hypot(p.x-points[index].x,p.y-points[index].y,p.z-points[index].z),0);
+    return {id,points,length,speed,loop,shuttle};
+  }
+  const basePaths=routes.map(route=>{
+    const count=Math.ceil(route.length/.025);
+    const points=Array.from({length:count+1},(_,index)=>{const p=route.curve.getPointAt(index/count);return supportedPoint(p.x,p.z);});
+    return measuredPath(route.name,points,route.speed,!route.shuttle,route.shuttle);
+  });
+  // Local approaches are explicit supported paths, not connections between the independent walking loops.
+  const authoredApproaches:Array<{id:string;resident:number;points:Point[]}>= [
+    {id:'greeting-10',resident:10,points:[[-1.86,-2.16],[-1.65,-2.05]]},
+    {id:'greeting-11',resident:11,points:[[-1.28,-2.20],[-1.38,-2.05]]},
+    {id:'cafe-server-9',resident:9,points:[[-1.85,-2.85],[-1.18,-2.85],[-1.18,-2.42]]},
+    {id:'cafe-customer-11',resident:11,points:[[-1.28,-2.20],[-1.18,-2.20]]},
+    {id:'garden-helper-18',resident:18,points:[[1.52,-.62],[1.30,-.30],[1.30,.75],[1.75,.78],[2.15,.78]]},
+  ];
+  const approachPaths=authoredApproaches.map(approach=>{
+    const points:SocialPoint[]=[];
+    for(let segment=1;segment<approach.points.length;segment++) {
+      const a=approach.points[segment-1],b=approach.points[segment],count=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/.025);
+      for(let index=segment===1?0:1;index<=count;index++)points.push(supportedPoint(a[0]+(b[0]-a[0])*index/count,a[1]+(b[1]-a[1])*index/count));
+    }
+    return measuredPath(`approach:${approach.id}`,points,.10);
+  });
+  const definitions:SocialResidentDefinition[]=walkers.map(({route,phase},id)=>{
+    const pose=sampleRoute(routes[route],0,phase);
+    return {id,home:supportedPoint(pose.x,pose.z),yaw:pose.yaw,seated:false,route:routes[route].name,routePhase:phase,baseActivity:'walk'};
+  });
+  stationary.forEach(([x,z,yaw,seated,activity],index)=>{
+    const id=index+walkers.length;
+    definitions.push({id,home:supportedPoint(x,z),yaw,seated,seat:seated?`seat:${id}`:undefined,
+      baseActivity:id===15||id===23?'read':activity==='water'?'garden':activity==='serve'?'cafe':'rest',
+      personalProp:id===15||id===23?'book':id===17||id===20?'water':id===12||id===16?'cup':undefined,waterTarget:waterTargets.get(id)});
+  });
+  function freezeLayout<T>(value:T):T {
+    if(value&&typeof value==='object') {for(const child of Object.values(value))freezeLayout(child);Object.freeze(value);}
+    return value;
+  }
+  // Sample/catalog identities stay fixed for the lifetime of the corresponding mechanical clearance certificates.
+  const layout:SocialLayout=freezeLayout({residents:definitions,paths:[...basePaths,...approachPaths],opportunities:[
+    {id:'courtyard-reading',kind:'greet',participants:[14,15],place:'courtyard-bench'},
+    {id:'cafe-greeting',kind:'greet',participants:[10,11],place:'cafe-forecourt',approaches:[{resident:10,path:'approach:greeting-10'},{resident:11,path:'approach:greeting-11'}]},
+    {id:'cafe-service',kind:'cafe',participants:[9,11],place:'cafe-right-end',prop:'shared-cafe-cup',approaches:[{resident:9,path:'approach:cafe-server-9'},{resident:11,path:'approach:cafe-customer-11'}]},
+    // Existing PCB traces prevent a conservative moving body envelope here; both retain their accepted supported homes.
+    {id:'circuit-gardening',kind:'garden',participants:[20,19],place:'circuit-pot',prop:'personal-water-20'},
+    {id:'courtyard-gardening',kind:'garden',participants:[17,18],place:'courtyard-pot',prop:'personal-water-17',approaches:[{resident:18,path:'approach:garden-helper-18'}]},
+    {id:'circuit-greeting',kind:'greet',participants:[21,22],place:'circuit-doorstep'},
+  ],openingTargets:{rail:[-2.7,1.2,-1],shoulder:[.5,1.4,-6.4],joystick:[-.25,1.8,.18]}} as SocialLayout);
+  const social=createSocialState(layout);
+  let poses:ResidentPose[]=[];
+  let socialTime=0;
+  function present() {
+    const frame=social.frame();socialTime=frame.time;
+    const presentation=createSocialPresentation(frame);poses=presentation.poses;
+    residents.update(poses,presentation.props);
+  }
+  function update(time:number) {
+    // Compare at the model's nanosecond precision; pass raw time through its existing validation.
+    if(Math.round(time*1e9)/1e9<socialTime)social.seek(time);else social.advanceTo(time);
+    present();
+  }
+  function seek(time:number){social.seek(time);present();}
+  function opening(event:SocialOpening){social.opening(event);}
+  function restoreSocial(history:unknown){const restored=social.restore(history);if(restored)present();return restored;}
   function auditRoutes() {
     let sampleCount=0; const failures:string[]=[];
     for(const route of routes) {
@@ -296,7 +361,7 @@ export function createCommunity(controller: THREE.Group) {
     return {routes:routes.length,residents:26,walkers:walkers.length,samples:sampleCount,clearance,failures};
   }
   // Expose the existing authored paths and real physical meshes to the mechanical sweep audit.
-  function routeFootprints() {
+  function legacyFootprints() {
     return routes.flatMap(route => {
       const count = Math.ceil(route.length / .025);
       return Array.from({ length: count + 1 }, (_, index) => {
@@ -304,6 +369,41 @@ export function createCommunity(controller: THREE.Group) {
         return { route: route.name, index, x: p.x, y: surfaceAt(p.x, p.z) ?? -10, z: p.z, radius: clearance, spacing: route.length / count };
       });
     });
+  }
+  function approachFootprints() {
+    return approachPaths.flatMap(path=>path.points.map((point,index)=>{
+      const distance=(other:SocialPoint|undefined)=>other?Math.hypot(point.x-other.x,point.y-other.y,point.z-other.z):0;
+      return {route:path.id,index,x:point.x,y:point.y,z:point.z,radius:clearance,
+        spacing:Math.max(distance(path.points[index-1]),distance(path.points[index+1]))};
+    }));
+  }
+  function routeFootprints(){return [...legacyFootprints(),...approachFootprints()];}
+  function physicalBounds(){return physical.map(object=>({object:object as THREE.Mesh,box:new THREE.Box3().setFromObject(object)}));}
+  // A finite standing envelope fits under the café roof while still rejecting counters, posts and low obstacles.
+  // The legacy route's stricter sky-ray predicate above remains unchanged.
+  function inspectApproachPoint(x:number,y:number,z:number,bounds=physicalBounds()) {
+    const failures:string[]=[];
+    for(let index=0;index<9;index++) {
+      const angle=index*Math.PI/4,r=index===8?0:clearance,px=x+Math.cos(angle)*r,pz=z+Math.sin(angle)*r,floor=surfaceAt(px,pz);
+      if(floor===undefined||Math.abs(floor-y)>.065)failures.push(`unsupported at ${px.toFixed(3)},${pz.toFixed(3)}`);
+    }
+    const body=new THREE.Box3(new THREE.Vector3(x-clearance,y+.004,z-clearance),new THREE.Vector3(x+clearance,y+.42,z+clearance));
+    for(const candidate of bounds)if(body.intersectsBox(candidate.box)&&intersectsMeshVolume(candidate.object,body))failures.push(`body intersects ${candidate.object.name||'physical mesh'}`);
+    return [...new Set(failures)];
+  }
+  function auditApproaches() {
+    controller.updateMatrixWorld(true);scenery.updateMatrixWorld(true);
+    const bounds=physicalBounds(),failures:string[]=[],paths:Array<{id:string;resident:number;length:number;samples:number}>=[];
+    for(const [pathIndex,path] of approachPaths.entries()) {
+      const authored=authoredApproaches[pathIndex],home=definitions[authored.resident].home,start=path.points[0];
+      if(Math.hypot(start.x-home.x,start.y-home.y,start.z-home.z)>1e-6)failures.push(`${path.id}: approach does not begin at its resident home`);
+      for(const [index,p] of path.points.entries()) {
+        const problems=inspectApproachPoint(p.x,p.y,p.z,bounds);
+        if(problems.length)failures.push(`${path.id} ${index}: ${problems.join('; ')}`);
+      }
+      paths.push({id:path.id,resident:authored.resident,length:path.length,samples:path.points.length});
+    }
+    return {approaches:paths.length,samples:paths.reduce((sum,path)=>sum+path.samples,0),clearance,height:.42,soleContactAllowance:.004,paths,failures};
   }
   function auditStationaryProps() {
     scenery.updateMatrixWorld(true); residents.group.updateMatrixWorld(true);
@@ -327,5 +427,7 @@ export function createCommunity(controller: THREE.Group) {
   }
   group.add(batchFurnishings(scenery),residents.group);
   update(0);
-  return {group,scenery,update,auditRoutes,auditStationaryProps,inspectPoint,routeFootprints,physicalMeshes:()=>[...physical] as THREE.Mesh[],snapshot:()=>poses.map(p=>({...p})),places:3,residentCount:26};
+  return {group,scenery,update,seek,opening,restoreSocial,auditRoutes,auditApproaches,auditStationaryProps,inspectPoint,inspectApproachPoint,
+    routeFootprints,approachFootprints,physicalMeshes:()=>[...physical] as THREE.Mesh[],snapshot:()=>poses.map(p=>({...p})),
+    socialLayout:()=>layout,socialSnapshot:()=>social.snapshot(),socialFrame:()=>social.frame(),socialHistory:()=>social.history(),places:3,residentCount:26};
 }

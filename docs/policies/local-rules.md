@@ -20,6 +20,10 @@ Keep images, task output, temporary files, scratch work, dependencies and build 
 
 Browser and localhost verification must run headlessly with task-owned processes and cleanup. Do not leave a server running unless the user asks.
 
+Verification must adapt to low, high and changing native frame cadence. Changing the monitor or its refresh rate alone must not fail a test. Determine sample duration and input pacing from actual elapsed time and required frame/command coverage, retain raw native timestamps, and exercise real controls throughout the measured window. Keep meaningful workload-regression and resource checks; native refresh intervals alone are not a measurement of application work. An older absolute frame-time budget must not silently stand in for this monitor-independent requirement. This direction was supplied by the user on 2026-09-08 after F33 exposed fixed frame-stride and command-cadence assumptions.
+
+Positive and negative input checks collect adequate observations before asserting behavior; they must not keep waiting until a defective result becomes correct. A task wrapper watches meaningful progress in the current action instead of using a fixed whole-suite deadline for cadence-dependent sampling. Unrelated animation-frame activity cannot conceal a hung action, and an infrastructure watchdog stop is reported as incomplete verification.
+
 The manager owns the current phased plan and acceptance in the original checkout's `docs/work/1_controller-life-expansion/plan.md`; `docs/work/0_procedural-people-world/plan.md` preserves the accepted baseline. The implementer owns application source and scoped verification. Do not create a competing plan in this worktree.
 
 Commit verified changes early and often. One Git delivery owner commits verified changes and pushes from the original checkout to the configured intended remote. Use normal safe pushes; do not force-push or discard remote work.

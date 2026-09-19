@@ -13,11 +13,23 @@ const slopes = [[0, 0], [.6, 0], [-.6, 0], [0, .6], [0, -.6], [.2, .3], [-.2, -.
 const headings = [0, Math.PI / 2, Math.PI, -.67];
 const matrix = new THREE.Matrix4();
 const point = new THREE.Vector3();
-let vite, residents;
+let vite, residents, createSocialPresentation;
 const ownedGroups = [];
 
 function pose(id, overrides = {}) {
   return { id, x: 0, y: 0, z: 0, yaw: 0, walkPhase: 0, walking: false, seated: false, activity: 'relax', time: 0, ...overrides };
+}
+
+// Fixture choices are explicit inputs; the renderer never infers an activity from time or ID.
+function renderActivity(poses, kind, phase = 0, stage = kind === 'book' ? 'read' : kind === 'cup' ? 'drink' : 'water', dropPhases = [phase, (phase + 1 / 3) % 1, (phase + 2 / 3) % 1]) {
+  const clip = stage === 'prepare' ? 'water-prepare' : stage === 'drain' ? 'water-drain' : stage === 'lower' ? 'water-lower' : stage;
+  const frame = {
+    time: 0, tick: 0, interactions: [],
+    actors: poses.map(p => ({ ...p, activity: kind === 'book' ? 'read' : kind === 'cup' ? 'cafe' : 'garden', interaction: null, role: null, cue: { clip, phase, weight: 1, gazeWeight: 0 } })),
+    props: poses.map(p => ({ id: `fixture-${kind}-${p.id}`, kind, owner: p.id, participants: [p.id], stage, phase, flow: kind === 'water' ? 1 : 0, dropPhases: kind === 'water' ? dropPhases : [] })),
+  };
+  const presentation = createSocialPresentation(frame);
+  residents.update(presentation.poses, presentation.props);
 }
 
 function vertices(mesh, index, visit) {
@@ -109,8 +121,10 @@ function assertHandContacts(record) {
 }
 
 try {
-  vite = await createServer({ server: { middlewareMode: true, hmr: { port: 0 } } });
+  vite = await createServer({ server: { host: '127.0.0.1', port: 0 } });
+  await vite.listen();
   const { createResidents } = await vite.ssrLoadModule('/src/scene/residents.ts');
+  ({ createSocialPresentation } = await vite.ssrLoadModule('/src/scene/social-poses.ts'));
   residents = createResidents(26);
   ownedGroups.push(residents.group);
   const vertexColorBatches = assertVertexColors();
@@ -245,7 +259,7 @@ try {
   let contactSamples = 0;
   for (const [id, activity, seated] of [[15, 'relax', true], [23, 'relax', true], [12, 'talk', true], [16, 'talk', true], [17, 'water', false], [20, 'water', false]]) {
     for (let sample = 0; sample < 12; sample++) {
-      residents.update([pose(id, { activity, seated, time: sample * .75, yaw: -.67, x: .37, y: .97, z: -.42 })]);
+      renderActivity([pose(id, { activity, seated, yaw: -.67, x: .37, y: .97, z: -.42 })], activity === 'relax' ? 'book' : activity === 'talk' ? 'cup' : 'water', sample / 12);
       const record = residents.group.userData.parts[0];
       assert.ok(record.heldKind, `Activity resident ${id} must hold a rendered object.`);
       contactDistances[record.heldKind] = Math.max(contactDistances[record.heldKind], assertHandContacts(record));
@@ -253,7 +267,7 @@ try {
     }
   }
 
-  residents.update([pose(15, { seated: true, activity: 'relax' })]);
+  renderActivity([pose(15, { seated: true })], 'book');
   const reader = residents.group.userData.parts[0];
   const originalBook = reader.held.map(ref => { const transform = new THREE.Matrix4(); partMesh(ref).getMatrixAt(ref.index, transform); return transform; });
   try {
@@ -264,9 +278,9 @@ try {
 
   let maximumMouthGap = 0, minimumCupTravel = Infinity;
   for (const id of [12, 16]) {
-    residents.update([pose(id, { seated: true, activity: 'talk', time: 0 })]);
+    renderActivity([pose(id, { seated: true })], 'cup', 0);
     const lowered = partBounds(residents.group.userData.parts[0].held[0]).getCenter(new THREE.Vector3());
-    residents.update([pose(id, { seated: true, activity: 'talk', time: 4 - id * .13 })]);
+    renderActivity([pose(id, { seated: true })], 'cup', .5);
     const drinker = residents.group.userData.parts[0], gap = surfaceDistance(drinker.mouth, triangles(drinker.held));
     const travel = lowered.distanceTo(partBounds(drinker.held[0]).getCenter(new THREE.Vector3()));
     assert.ok(gap <= .004, `Drinking resident ${id} cup misses the actual lip surface by ${gap}.`);
@@ -284,16 +298,14 @@ try {
   community.scenery.traverse(object => { if (object.name === 'recessed-soil') soils.push(object); });
   let maximumWaterMiss = 0;
   const waterTargets = [];
-  for (const authored of community.snapshot().filter(candidate => candidate.activity === 'water')) {
+  for (const authored of community.snapshot().filter(candidate => candidate.waterTarget)) {
     assert.ok(authored.waterTarget, `Authored watering resident ${authored.id} needs an actual soil target.`);
     const target = new THREE.Vector3(...authored.waterTarget);
     assert.ok(soils.some(soil => {
       const bounds = new THREE.Box3().setFromObject(soil), center = bounds.getCenter(new THREE.Vector3());
       return Math.abs(target.y - bounds.max.y) < tolerance && Math.hypot(target.x - center.x, target.z - center.z) < tolerance;
     }), `Water target ${authored.id} is detached from all actual soil surfaces.`);
-    const cycle = Math.ceil(authored.id * 1.73 * .9) + 1;
-    const time = (cycle + 1 - 1e-5) / .9 - authored.id * 1.73;
-    residents.update([{ ...authored, time }]);
+    renderActivity([authored], 'water', 1 - 1e-5);
     const record = residents.group.userData.parts[0];
     assert.equal(record.waterDrops.length, 3, 'Watering must retain three restrained rendered droplets.');
     const drop = record.waterDrops[0], transform = new THREE.Matrix4(); partMesh(drop).getMatrixAt(drop.index, transform);
@@ -304,13 +316,13 @@ try {
   assert.equal(waterTargets.length, 2, 'Both authored watering activities must hit soil.');
 
   for (let sample = 0; sample < 32; sample++) {
-    residents.update(Array.from({ length: 26 }, (_, id) => pose(id, { activity: 'water', time: sample * .2 })));
+    renderActivity(Array.from({ length: 26 }, (_, id) => pose(id)), 'water', sample / 32);
     assertFiniteCapacity();
   }
   const waterInstances = residents.group.children.reduce((sum, mesh) => sum + mesh.count, 0);
   assert.ok(waterInstances > 26 * 18, 'The watering check must include the held props and droplets.');
   for (const activity of ['relax', 'talk']) for (let sample = 0; sample < 12; sample++) {
-    residents.update(Array.from({ length: 26 }, (_, index) => pose(activity === 'talk' ? 12 : index, { activity, seated: true, time: sample * .75 })));
+    renderActivity(Array.from({ length: 26 }, (_, id) => pose(id, { seated: true })), activity === 'talk' ? 'cup' : 'book', sample / 12);
     assertFiniteCapacity();
   }
   residents.update([]);
@@ -325,8 +337,11 @@ try {
   console.log(`PASS vertex colors: ${vertexColorBatches.length} actual material batches, ${rejectedColorMutations} missing/mismatched/nonfinite attribute mutations rejected and restored.`);
 } finally {
   const geometries = new Set(), materials = new Set();
-  for (const group of ownedGroups) group.traverse(object => { if (object.isMesh) { geometries.add(object.geometry); for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material); } });
+  const textures = new Set(), instances = new Set();
+  for (const group of ownedGroups) group.traverse(object => { if (object.isMesh) { geometries.add(object.geometry); if (object.isInstancedMesh) instances.add(object); for (const material of Array.isArray(object.material) ? object.material : [object.material]) { materials.add(material); for (const value of Object.values(material)) if (value?.isTexture) textures.add(value); } } });
+  for (const instance of instances) instance.dispose();
   for (const geometry of geometries) geometry.dispose();
   for (const material of materials) material.dispose();
+  for (const texture of textures) texture.dispose();
   await vite?.close();
 }

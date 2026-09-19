@@ -8,6 +8,7 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
+import { nativeExposure as observeNative, emitGateProgress } from './native-observation.mjs';
 
 // Production GPU readback may differ by one 8-bit level at isolated pixels.
 // Both limits must hold: max RGBA channel delta <=1 and changed pixels <=0.001%.
@@ -47,10 +48,14 @@ const output = resolve('output/playwright');
 await mkdir(output, { recursive: true });
 const errors = [];
 const evidence = [];
+const observations=[];
+async function nativeExposure(page,options){const witness=await observeNative(page,options);observations.push({label:options.label,...witness});return witness;}
 let vite, productionServer, browserServer, browser, context, productionContext;
 let browserPid;
 const live = pid => { try { process.kill(pid,0); return true; } catch { return false; } };
 try {
+  await import('./check-native-observation.mjs');
+  await emitGateProgress({stage:'browser/preflight',action:'native-observation-cpu',witness:'completed',value:1});
   await access(resolve('dist/index.html'));
   for (const path of ['src/scene/controller.ts','src/scene/geometry.ts']) {
     assert.doesNotMatch(await readFile(path,'utf8'), /\blettering\b|\bglyphs\b/, `${path} must not contain controller lettering geometry.`);
@@ -77,7 +82,7 @@ try {
   await page.evaluate(() => window.__tinyWorld.setTime(0));
   async function capture(name) {
     await page.mouse.move(0,0);
-    await page.waitForTimeout(600);
+    await nativeExposure(page,{label:`Browser capture ${name}`,stage:'browser/captures',minimumClampedMs:600});
     const image = await page.screenshot({ path: resolve(output, `${name}.png`) });
     const digest = createHash('sha256').update(image).digest('hex');
     evidence.push({ name, sha256: digest, viewport: page.viewportSize() });
@@ -122,7 +127,7 @@ try {
   await capture('09-life-at-19s');
   await page.evaluate(() => window.__tinyWorld.resume());
   const beforeLife=await page.evaluate(() => window.__tinyWorld.residents());
-  await page.waitForTimeout(2200);
+  await nativeExposure(page,{label:'Ordinary resident movement',stage:'browser/life',minimumClampedMs:2200});
   await capture('10-life-running');
   const afterLife=await page.evaluate(() => window.__tinyWorld.residents());
   const walkingMoved=afterLife.filter((p,i)=>p.activity==='walk' && Math.hypot(p.x-beforeLife[i].x,p.z-beforeLife[i].z)>.015).length;
@@ -133,8 +138,8 @@ try {
   const disabledCamera=await page.evaluate(() => window.__tinyWorld.camera());
   const disabledBefore=await page.evaluate(() => window.__tinyWorld.residents());
   await page.mouse.move(1000,510);await page.mouse.down();await page.mouse.move(1220,550,{steps:20});await page.mouse.up();await page.mouse.wheel(0,-300);
-  await page.keyboard.down('d');await page.waitForTimeout(350);await page.keyboard.up('d');
-  await page.waitForTimeout(700);
+  await page.keyboard.down('d');await nativeExposure(page,{label:'Disabled held D',stage:'browser/input-negative',minimumClampedMs:350});await page.keyboard.up('d');
+  await nativeExposure(page,{label:'Disabled input while life advances',stage:'browser/input-negative',minimumClampedMs:700});
   assert.deepEqual(await page.evaluate(() => window.__tinyWorld.camera()),disabledCamera,'Disabled controls must stay unchanged even while people move.');
   const disabledAfter=await page.evaluate(() => window.__tinyWorld.residents());
   assert.ok(disabledAfter.some((p,i)=>Math.hypot(p.x-disabledBefore[i].x,p.z-disabledBefore[i].z)>.01));
@@ -142,7 +147,7 @@ try {
   await page.evaluate(() => window.__tinyWorld.view([-4,6,9],[0,1.1,4.45]));
   await capture('11-circuit-homes');
   await page.evaluate(() => {window.__tinyWorld.setTime(12);window.__tinyWorld.resume();});
-  await page.waitForTimeout(1600);
+  await nativeExposure(page,{label:'Circuit residents running',stage:'browser/life',minimumClampedMs:1600});
   await capture('12-circuit-life-running');
   await page.evaluate(() => {window.__tinyWorld.setTime(0);window.__tinyWorld.view([-5,5,-.1],[-1.5,1.55,-2.75]);});
   await capture('13-cafe');
@@ -150,11 +155,8 @@ try {
   await capture('14-courtyard');
   await page.keyboard.press('r');
   await page.evaluate(() => window.__tinyWorld.resume());
-  const frameTimes=await page.evaluate(async()=>{
-    const samples=[];let previous;
-    while(samples.length<150) {const now=await new Promise(requestAnimationFrame);if(previous!==undefined)samples.push(now-previous);previous=now;}
-    return samples;
-  });
+  const frameExposure=await nativeExposure(page,{label:'Ordinary 150 application intervals',stage:'browser/timing',source:'application',minimumFrames:151});
+  const frameRecords=frameExposure.frames.slice(0,151),frameTimes=frameRecords.slice(1).map((frame,index)=>frame.nativeTimestamp-frameRecords[index].nativeTimestamp);
   const frameTiming={samples:frameTimes.length,meanMs:frameTimes.reduce((a,b)=>a+b,0)/frameTimes.length,p95Ms:[...frameTimes].sort((a,b)=>a-b)[Math.floor(frameTimes.length*.95)]};
   // Production has no debug hooks: stable rendered pixels prove life is paused before the pan.
   productionServer = await preview({preview:{host:'127.0.0.1',port:0,strictPort:false}});
@@ -167,28 +169,28 @@ try {
   assert.equal(await production.evaluate(()=>typeof window.__tinyWorld),'undefined','Production pan must be tested without development hooks.');
   assert.equal(await production.locator('#error').isVisible(),false);
   assert.equal(await production.locator('canvas').count(),1);
-  await production.keyboard.press('Space');await production.waitForTimeout(500);
+  await production.keyboard.press('Space');await nativeExposure(production,{label:'Production Space exposure',stage:'browser/production',minimumClampedMs:500});
   async function productionShot(name) {
     const bytes=await production.screenshot({path:resolve(output,`${name}.png`)});
     const digest=createHash('sha256').update(bytes).digest('hex');
     evidence.push({name,sha256:digest,viewport:production.viewportSize(),production:true});return {digest,bytes};
   }
   const productionBefore=await productionShot('15-production-paused');
-  await production.waitForTimeout(500);
+  await nativeExposure(production,{label:'Production paused stability',stage:'browser/production',minimumClampedMs:500});
   const stableBefore=assertProductionStable(productionBefore.bytes,await production.screenshot(),'Production pixels must be stable after Space before pan can prove camera behavior.');
-  await production.keyboard.down('d');await production.waitForTimeout(800);await production.keyboard.up('d');await production.waitForTimeout(150);
+  await production.keyboard.down('d');await nativeExposure(production,{label:'Production held D',stage:'browser/production',minimumClampedMs:800});await production.keyboard.up('d');await nativeExposure(production,{label:'Production released D',stage:'browser/production',minimumClampedMs:150});
   const productionAfter=await productionShot('16-production-panned');
   assert.notEqual(productionAfter.digest,productionBefore.digest,'Actual held D must change the paused production render.');
   const pan=compareProductionFrames(productionBefore.bytes,productionAfter.bytes);
   assert.equal(pan.matches,false,'Actual held D must exceed the tiny production stability tolerance.');
-  await production.waitForTimeout(500);
+  await nativeExposure(production,{label:'Production release stability',stage:'browser/production',minimumClampedMs:500});
   const productionReleased=await productionShot('17-production-released');
   const released=assertProductionStable(productionAfter.bytes,productionReleased.bytes,'Production pan must stop on key release.');
-  await production.keyboard.down('Shift');await production.keyboard.down('d');await production.waitForTimeout(350);await production.keyboard.up('d');await production.keyboard.up('Shift');
+  await production.keyboard.down('Shift');await production.keyboard.down('d');await nativeExposure(production,{label:'Production modified D',stage:'browser/production',minimumClampedMs:350});await production.keyboard.up('d');await production.keyboard.up('Shift');
   const modified=assertProductionStable(productionAfter.bytes,await production.screenshot(),'Modified WASD must not pan the production render.');
   await productionContext.close();productionContext=undefined;
   assert.deepEqual(errors,[],'No runtime errors, warnings or failing network requests.');
-  await writeFile(resolve(output,'evidence.json'),JSON.stringify({ evidence, errors, layout, metrics, frameTiming, initialCamera, walkingMoved, beforeLife, afterLife,productionPan:{before:productionBefore.digest,after:productionAfter.digest,released:productionReleased.digest,comparisons:{stableBefore,pan,released,modified}} },null,2));
+  await writeFile(resolve(output,'evidence.json'),JSON.stringify({ evidence, observations, errors, layout, metrics, frameTiming, frameExposure, initialCamera, walkingMoved, beforeLife, afterLife,productionPan:{before:productionBefore.digest,after:productionAfter.digest,released:productionReleased.digest,comparisons:{stableBefore,pan,released,modified}} },null,2));
   console.log(`Render metrics: ${JSON.stringify(metrics)}`);
   console.log(`Frame timing (bounded local run): ${JSON.stringify(frameTiming)}`);
   console.log(`PASS: ${evidence.length} views, independent orbit/zoom/reset, resized desktop canvas, ${walkingMoved} moving walkers, disabled-control proof, no console/network errors.`);

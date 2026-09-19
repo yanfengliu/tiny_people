@@ -12,6 +12,7 @@ import { chromium } from 'playwright';
 import { PNG } from 'playwright-core/lib/utilsBundle';
 import { createServer, preview } from 'vite';
 import { evaluateMechanismPerformance, mechanismPerformanceLimits } from './mechanism-performance.mjs';
+import { emitGateProgress, nativeExposure } from './native-observation.mjs';
 
 const output = resolve(process.env.MECHANISM_INPUT_OUTPUT || 'output/phase8/mechanism-input');
 const fixturePath = resolve(process.env.MECHANISM_INPUT_FIXTURE || 'output/phase8/mechanism-input-fixtures.json');
@@ -20,7 +21,7 @@ assert.ok(productionArgument < 0 || (process.argv[productionArgument + 1] && !pr
 const productionDir = resolve(productionArgument < 0 ? process.env.MECHANISM_PRODUCTION_DIR || 'dist' : process.argv[productionArgument + 1]);
 const required = ['geometry-fixtures', 'pointer-openings', 'click-threshold', 'drag-cancellation', 'reversal',
   'occlusion', 'input-cancellation', 'keyboard-isolation', 'pause-clocks', 'reduced-motion',
-  'lifecycle', 'history', 'graphics-restoration', 'resource-cycles', 'timing', 'production', 'endpoint-hover', 'same-tick-camera'];
+  'lifecycle', 'history', 'graphics-restoration', 'resource-cycles', 'timing', 'production', 'endpoint-hover', 'same-tick-camera', 'social-events', 'social-lifecycle'];
 const report = { schema: 1, checks: [], screenshots: [], trials: [], errors: [], lifecycle: {}, cleanup: {} };
 const contexts = new Set(), processRecords = new Map();
 const intentionalNavigation = new Set();
@@ -35,7 +36,11 @@ const snapshots = page => page.evaluate(() => window.__tinyWorld.mechanisms());
 const clocks = page => page.evaluate(() => window.__tinyWorld.clocks());
 const metrics = page => page.evaluate(() => window.__tinyWorld.metrics());
 const events = page => page.evaluate(() => window.__tinyWorld.mechanismEvents());
-const frame = page => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
+const socialHistory = page => page.evaluate(() => window.__tinyWorld.socialHistory());
+const socialWorld = page => page.evaluate(() => { const s = window.__tinyWorld.social(); return { time: s.time, tick: s.tick, actors: s.actors, interactions: s.interactions, reservations: s.reservations, frame: s.frame }; });
+const frame = page => nativeExposure(page, { label: 'mechanism-frame-observation', minimumFrames: 2 });
+const expose = (page, label, minimumClampedMs = 0, minimumElapsedMs = 0, source = 'auto') =>
+  nativeExposure(page, { label, minimumFrames: 3, minimumClampedMs, minimumElapsedMs, source });
 const magnitude = values => Math.hypot(...values);
 const difference = (a, b) => a.map((value, i) => value - b[i]);
 const mechanism = (rows, id) => { const row = rows.find(item => item.id === id); assert.ok(row, 'Missing mechanism ' + id); return row; };
@@ -143,7 +148,7 @@ async function openPage(label, options = {}, url = baseUrl) {
 }
 async function closePage(context) { await context.close(); contexts.delete(context); }
 async function ready(page) {
-  await page.waitForFunction(() => typeof window.__tinyWorld?.mechanisms === 'function' && typeof window.__tinyWorld?.clocks === 'function');
+  await page.waitForFunction(() => typeof window.__tinyWorld?.mechanisms === 'function' && typeof window.__tinyWorld?.clocks === 'function' && typeof window.__tinyWorld?.frameWork === 'function');
   const actual = await snapshots(page);
   assert.deepEqual(actual.map(row => row.id).sort(), fixtures.mechanisms.map(row => row.id).sort(), 'Fixtures must cover every mechanism.');
   for (const row of actual) {
@@ -191,14 +196,16 @@ async function diagnosticClosed(page) {
 async function prepare(page, fixture, { freezeLife = true } = {}) {
   await diagnosticClosed(page);
   if (freezeLife) await page.evaluate(time => window.__tinyWorld.setTime(time), fixture.time ?? 0);
-  await setView(page, fixture); await page.mouse.move(0, 0); await page.waitForTimeout(180);
+  await setView(page, fixture); await page.mouse.move(0, 0); await expose(page, 'prepare-view', 180);
   return project(page, fixture.point);
 }
 async function settled(page, id, target) {
-  await page.waitForFunction(({ id, target }) => {
-    const item = window.__tinyWorld.mechanisms().find(row => row.id === id);
-    return item && item.target === target && Math.abs(item.progress - target) < 1e-7;
-  }, { id, target }, { timeout: 5000 });
+  // The physical transition has more than enough simulated time at any native
+  // cadence; the product is asserted only after this independent exposure.
+  await expose(page, 'mechanism-settle-' + id, (await state(page)).reducedMotion ? 0 : 2000);
+  const item = mechanism(await snapshots(page), id);
+  assert.equal(item.target, target);
+  assert.ok(Math.abs(item.progress - target) < 1e-7, id + ': mechanism did not settle after its authored frame exposure.');
 }
 async function focusButton(page, id) {
   for (let attempt = 0; attempt < fixtures.mechanisms.length + 5; attempt++) {
@@ -213,10 +220,10 @@ async function assertOneCommand(page, seq, id, source, label) {
   assert.equal(accepted[0].id, id); assert.equal(accepted[0].source, source);
   return accepted[0];
 }
-async function keyboardToggle(page, id, key = 'Enter') {
+async function keyboardToggle(page, id, key = 'Enter', afterPress = frame) {
   await focusButton(page, id);
   const before = mechanism(await snapshots(page), id), seq = lastSeq(await events(page));
-  await page.keyboard.press(key); await frame(page);
+  await page.keyboard.press(key); await afterPress(page);
   await assertOneCommand(page, seq, id, 'keyboard', key + ' activation');
   assert.equal(mechanism(await snapshots(page), id).target, 1 - before.target);
 }
@@ -231,7 +238,7 @@ async function pointerToggle(page, fixture, moves = []) {
   assert.equal(mechanism(await snapshots(page), fixture.id).target, 1 - before.target);
 }
 async function noActivation(page, seq, before, label) {
-  await page.waitForTimeout(180);
+  await expose(page, 'cancelled-input-observation', 180);
   assert.deepEqual(commandEvents(await events(page), seq), [], label + ': no command, including an open-then-close transient.');
   const after = await snapshots(page);
   sameTargets(before, after, label);
@@ -242,20 +249,19 @@ async function capture(page, name, production = false, preservePointer = false) 
   await frame(page);
   const bytes = await page.screenshot({ path: resolve(output, name + '.png') });
   report.screenshots.push({ name, sha256: hash(bytes), viewport: page.viewportSize(), production,
-    ...(production ? {} : { camera: await camera(page), mechanisms: await snapshots(page), clocks: await clocks(page) }) });
+    ...(production ? {} : { camera: await camera(page), mechanisms: await snapshots(page), clocks: await clocks(page), social: await socialWorld(page) }) });
   return bytes;
 }
 async function productionSettled(page, label) {
-  let previous = await page.screenshot(), consecutive = 0;
-  const started = Date.now();
-  while (Date.now() - started < 6000) {
-    await page.waitForTimeout(200);
+  await expose(page, label + '-travel', 2000);
+  let previous = await page.screenshot();
+  for (let index = 0; index < 2; index++) {
+    await expose(page, label + '-stable-' + index, 200);
     const current = await page.screenshot();
-    consecutive = comparePixels(previous, current).matches ? consecutive + 1 : 0;
-    if (consecutive >= 2) return current;
+    assert.equal(comparePixels(previous, current).matches, true, label + ': production pixels still move after adequate native-frame exposure.');
     previous = current;
   }
-  assert.fail(label + ': production pixels did not settle; a time delay alone is not proof of completion.');
+  return previous;
 }
 async function cancelTrial(page, fixture, label, action, expectedCameraChange = false) {
   const point = await prepare(page, fixture), before = await snapshots(page), view = await camera(page), seq = lastSeq(await events(page));
@@ -269,39 +275,240 @@ async function ensureLifeRunning(page) {
   await page.evaluate(() => { window.__tinyWorld.resume(); window.__tinyWorld.freezeMechanisms(false); });
   if ((await state(page)).paused) { await page.locator('canvas').focus(); await page.keyboard.press('Space'); }
   const before = await clocks(page), people = await page.evaluate(() => window.__tinyWorld.residents());
-  await page.waitForTimeout(250);
+  await expose(page, 'ordinary-clocks-resume', 250);
   const after = await clocks(page), next = await page.evaluate(() => window.__tinyWorld.residents());
   assert.equal((await state(page)).testFrozen, false);
   assert.ok(after.life > before.life && after.mechanism > before.mechanism, 'Both ordinary clocks must advance.');
-  assert.ok(next.some((row, i) => row.activity === 'walk' && Math.hypot(row.x - people[i].x, row.z - people[i].z) > .001), 'Ordinary resident movement must be real.');
+  // Purposeful waits/reactions may occupy the short observation. Give the model
+  // eight seconds of actual clamped exposure, then require real walking.
+  if (!next.some((row, i) => row.walking && Math.hypot(row.x - people[i].x, row.z - people[i].z) > .001)) {
+    await expose(page, 'ordinary-walking-resume', 8000);
+    const walking = await page.evaluate(() => window.__tinyWorld.residents());
+    assert.ok(walking.some((row, i) => row.walking && Math.hypot(row.x - people[i].x, row.z - people[i].z) > .001), 'Walking must resume after 8 seconds of clamped exposure.');
+  }
 }
 async function freezeBothObserved(page, label) {
-  const before = await clocks(page); await page.waitForTimeout(250); assert.deepEqual(await clocks(page), before, label + ': both clocks must stop.');
+  const before = await clocks(page), social = await socialWorld(page);
+  await expose(page, label + '-frozen', 0, 250, 'native');
+  assert.deepEqual(await clocks(page), before, label + ': both clocks must stop.');
+  assert.deepEqual(await socialWorld(page), social, label + ': social actors, phases and reservations must stop with life.');
 }
-async function nativeTiming(page, count) {
-  return page.evaluate(async count => {
-    const samples = []; let previous;
-    for (let index = 0; index <= count; index++) {
-      const now = await new Promise(requestAnimationFrame);
-      if (previous !== undefined) samples.push(now - previous);
-      previous = now;
-    }
-    return samples;
-  }, count);
-}
-async function activeNativeTiming(page, count) {
-  return page.evaluate(async count => {
-    const samples = []; let previous, movingFrames = 0;
-    for (let index = 0; index <= count; index++) {
-      const now = await new Promise(requestAnimationFrame);
-      if (previous !== undefined) {
-        samples.push(now - previous);
-        if (window.__tinyWorld.mechanisms().some(row => Math.abs(row.progress - row.target) > 1e-5)) movingFrames++;
+// active-timing:begin
+// Sampling observes contiguous completed application frames and never waits for
+// host input. Real commands react to travel or sample exposure; missed requests
+// coalesce instead of becoming a burst of backfilled commands.
+export function installActiveTiming({ count, id, active = true, action = 'mechanism-sample', exposureMs }) {
+  if (window.__mechanismTiming) throw new Error('An active timing sampler already exists.');
+  const target = document.querySelector('button[data-mechanism-id="' + id + '"]');
+  const canvas = exposureMs === undefined ? undefined : document.querySelector('canvas');
+  if (active && !target) throw new Error('The actual mechanism keyboard target is missing.');
+  const samples = [], frames = [], witnesses = [], waiters = [];
+  let request, watchdog, anchor, previous, timeOrigin, currentMechanism, movingFrames = 0;
+  let startSequence, endSequence, lastCommandFrame = -1, requestedAt, commandLead = 0, finished = false, cancelled = false, result;
+  let commandAnchor, commandExposureMs = 0;
+  let lastProgressAt = performance.now(), longestInterval = 0, lastLogAt = -Infinity;
+  let resolveFinish;
+  const finish = new Promise(resolve => { resolveFinish = resolve; });
+  const rows = () => window.__tinyWorld.mechanismEvents();
+  const sequence = () => rows().at(-1)?.sequence ?? 0;
+  function commandDue() {
+    if (!active || !anchor || finished) return false;
+    if (lastCommandFrame < 0) return true;
+    const gap = frames.length - lastCommandFrame;
+    if (gap >= Math.max(2, 45 - commandLead)) return true;
+    const remaining = currentMechanism.target - currentMechanism.progress;
+    return gap >= 2 && Math.abs(remaining) <= .25 && currentMechanism.velocity * remaining >= 0;
+  }
+  const status = () => ({ sampleIndex: anchor ? frames.length : -1,
+    timestamp: previous?.nativeTimestamp, finished, cancelled, due: commandDue(), lastCommandFrame, commandAnchor });
+  function notify() {
+    for (let index = waiters.length - 1; index >= 0; index--) {
+      const waiter = waiters[index];
+      if (finished || (waiter.command ? commandDue() : anchor && frames.length >= waiter.index)) {
+        if (waiter.command && !finished) requestedAt = frames.length;
+        waiters.splice(index, 1)[0].resolve(status());
       }
-      previous = now;
     }
-    return { samples, movingFrames };
-  }, count);
+  }
+  function complete(reason, error) {
+    if (finished) return result;
+    finished = true; cancelled = reason !== undefined;
+    if (request !== undefined) cancelAnimationFrame(request);
+    clearTimeout(watchdog); request = undefined; target?.removeEventListener('keydown', observeKey);
+    canvas?.removeEventListener('pointerup', observePointer, true);
+    try { endSequence = sequence(); } catch (caught) { error ??= String(caught); }
+    const credited = witnesses.filter(row => row.sequence > startSequence && row.sequence <= endSequence &&
+      row.workSequence >= anchor.sequence && row.workSequence < previous.sequence && row.observedAt <= previous.completedAtMs);
+    result = { timeOrigin, anchor, frames, samples, movingFrames, startSequence, endSequence, commandAnchor, commandExposureMs,
+      commands: credited.map(row => row.command), witnesses, cancelled, reason, error };
+    notify(); resolveFinish(result); return result;
+  }
+  // Registered after the application's listener on the same real button. Its
+  // stopPropagation does not prevent this observer from seeing accepted input.
+  function observeKey(event) {
+    if (finished || !anchor || event.key !== 'Enter') return;
+    const command = rows().findLast(row => row.type === 'command');
+    if (command?.type !== 'command' || command.sequence <= startSequence || command.id !== id || command.source !== 'keyboard') return;
+    if (witnesses.some(row => row.sequence === command.sequence)) return;
+    const workSequence = window.__tinyWorld.frameWork().lastSequence;
+    lastCommandFrame = workSequence - anchor.sequence;
+    if (exposureMs !== undefined && !commandAnchor) commandAnchor = { sequence: command.sequence, workSequence,
+      source: command.source, trusted: event.isTrusted, eventTimestamp: event.timeStamp };
+    commandLead = requestedAt === undefined ? 0 : Math.max(0, lastCommandFrame - requestedAt);
+    witnesses.push({ sequence: command.sequence, sampleIndex: lastCommandFrame, workSequence,
+      requestedAt, commandLead,
+      frameTimestamp: previous.nativeTimestamp, eventTimestamp: event.timeStamp, observedAt: performance.now(),
+      trusted: event.isTrusted, key: event.key, command });
+  }
+  function observePointer(event) {
+    if (finished || !anchor || commandAnchor) return;
+    const command = rows().findLast(row => row.type === 'command');
+    if (command?.id !== id || command.source !== 'pointer' || command.sequence <= startSequence) return;
+    commandAnchor = { sequence: command.sequence, workSequence: window.__tinyWorld.frameWork().lastSequence,
+      source: command.source, trusted: event.isTrusted, eventTimestamp: event.timeStamp };
+  }
+  function tick() {
+    request = undefined;
+    try {
+      const work = window.__tinyWorld.frameWork(), latest = work.frames.at(-1);
+      if (!latest) { request = requestAnimationFrame(tick); return; }
+      if (!anchor) {
+        anchor = previous = latest; timeOrigin = work.timeOrigin; startSequence = sequence();
+        lastProgressAt = performance.now();
+      } else {
+        if (work.timeOrigin !== timeOrigin) throw new Error('Application timing origin changed.');
+        const pending = work.frames.filter(row => row.sequence > previous.sequence);
+        if (pending.length > 1 || pending[0] && pending[0].sequence !== previous.sequence + 1) {
+          throw new Error('Incomplete timing observation: missed application frame or ambiguous motion/command boundary.');
+        }
+        if (pending.length) {
+          const row = pending[0], interval = row.nativeTimestamp - previous.nativeTimestamp;
+          if (!(interval > 0)) throw new Error('Native timestamps did not advance.');
+          frames.push(row); samples.push(interval); previous = row;
+          if (commandAnchor && row.sequence > commandAnchor.workSequence) commandExposureMs += Math.min(interval, 50);
+          longestInterval = Math.max(longestInterval, interval); lastProgressAt = performance.now();
+          if (active && window.__tinyWorld.mechanisms().some(item => Math.abs(item.progress - item.target) > 1e-5)) movingFrames++;
+        }
+      }
+      if (active) {
+        currentMechanism = window.__tinyWorld.mechanisms().find(row => row.id === id);
+        if (!currentMechanism) throw new Error('The actual moving mechanism is missing.');
+      }
+      if (performance.now() - lastLogAt >= 1000) {
+        console.log('GATE_PROGRESS ' + JSON.stringify({ scope: active ? 'mechanism-active-sample' : 'mechanism-baseline-sample', action,
+          sequence: previous.sequence, completed: frames.length, required: count }));
+        lastLogAt = performance.now();
+      }
+      if (exposureMs !== undefined ? commandExposureMs + 1e-7 >= exposureMs : frames.length === count) {
+        if (exposureMs !== undefined) window.__tinyWorld.freezeMechanisms(true);
+        complete();
+      }
+      else { request = requestAnimationFrame(tick); notify(); }
+    } catch (error) { complete('sampler-error', String(error)); }
+  }
+  function checkProgress() {
+    if (finished) return;
+    if (performance.now() - lastProgressAt > Math.max(30000, longestInterval * 8)) {
+      complete('stalled/incomplete: no completed application frames'); return;
+    }
+    watchdog = setTimeout(checkProgress, 1000);
+  }
+  window.__mechanismTiming = {
+    finish,
+    waitForSample(index) {
+      if (finished || anchor && frames.length >= index) return Promise.resolve(status());
+      return new Promise(resolve => { waiters.push({ index, resolve }); });
+    },
+    waitForCommand() {
+      if (finished || commandDue()) {
+        if (!finished) requestedAt = frames.length;
+        return Promise.resolve(status());
+      }
+      return new Promise(resolve => { waiters.push({ command: true, resolve }); });
+    },
+    cancel: reason => complete(reason ?? 'cancelled'),
+  };
+  if (active) target.addEventListener('keydown', observeKey);
+  // The application's successful pointer-up handler runs in capture phase. This
+  // later observer binds the accepted command to its actual completed-frame ID.
+  canvas?.addEventListener('pointerup', observePointer, true);
+  request = requestAnimationFrame(tick); watchdog = setTimeout(checkProgress, 1000);
+}
+// active-timing:end
+let samplerActionSequence = 0;
+function samplerProgress(page, action) {
+  const writes = []; let failure;
+  const observe = message => {
+    if (!message.text().startsWith('GATE_PROGRESS ')) return;
+    try {
+      const row = JSON.parse(message.text().slice('GATE_PROGRESS '.length));
+      if (row.action === action) {
+        console.log(message.text());
+        writes.push(emitGateProgress({ stage: 'mechanism-input', action, witness: 'frames', value: row.completed }).catch(error => { failure ??= error; }));
+      }
+    } catch (error) { failure ??= error; }
+  };
+  page.on('console', observe);
+  return async success => {
+    page.off('console', observe); await Promise.all(writes);
+    if (failure) throw failure;
+    await emitGateProgress({ stage: 'mechanism-input', action, witness: success ? 'completed' : 'error', value: success ? 1 : 0 });
+  };
+}
+async function commandPose(page, id, exposureMs, command) {
+  let succeeded = false;
+  const action = 'command-pose-' + id + '-' + ++samplerActionSequence, endProgress = samplerProgress(page, action);
+  try {
+    await page.evaluate(installActiveTiming, { count: 1, id, exposureMs, action });
+    await page.evaluate(() => window.__mechanismTiming.waitForSample(0));
+    await command();
+    const attribution = await page.evaluate(() => window.__mechanismTiming.waitForSample(0));
+    assert.ok(attribution.commandAnchor?.trusted, 'The real command must have a trusted completed-frame attribution before awaiting exposure.');
+    const result = await page.evaluate(() => window.__mechanismTiming.finish);
+    assert.equal(result.cancelled, false, result.reason + ': ' + result.error);
+    assert.ok(result.commandAnchor, 'Intermediate pose requires an actual accepted command.');
+    assert.ok(result.commandExposureMs >= exposureMs - 1e-7 && result.commandExposureMs <= exposureMs + 50 + 1e-7,
+      'Intermediate pose freezes at the first completed frame reaching its command-relative exposure.');
+    report.trials.push({ label: 'command-relative-pose', id, requestedMs: exposureMs,
+      actualMs: result.commandExposureMs, command: result.commandAnchor, completedFrame: result.frames.at(-1).sequence });
+    succeeded = true;
+  } finally {
+    try {
+      if (!page.isClosed()) await page.evaluate(success => {
+        window.__mechanismTiming?.cancel('pose host cleanup'); delete window.__mechanismTiming;
+        if (!success) window.__tinyWorld.freezeMechanisms(false);
+      }, succeeded);
+    } finally { await endProgress(succeeded); }
+  }
+}
+async function nativeTiming(page, count, id, active = false) {
+  const activeCommands = []; let succeeded = false;
+  const action = active ? 'mechanism-active-600' : 'mechanism-baseline-150';
+  const endProgress = samplerProgress(page, action);
+  try {
+    await page.evaluate(installActiveTiming, { count, id, active, action });
+    while (active) {
+      const before = await page.evaluate(() => window.__mechanismTiming.waitForCommand());
+      if (before.finished || before.cancelled) break;
+      // Keep the ordinary real-input assertion, but use the owned sampler for
+      // its two-frame observation so cancellation cannot strand a separate RAF.
+      await keyboardToggle(page, id, 'Enter', async () => page.evaluate(async () => {
+        const accepted = await window.__mechanismTiming.waitForSample(0);
+        return window.__mechanismTiming.waitForSample(accepted.lastCommandFrame + 2);
+      }));
+      activeCommands.push({ dispatchedAfterFrame: before.sampleIndex,
+        ...mechanism(await snapshots(page), id) });
+    }
+    const result = await page.evaluate(() => window.__mechanismTiming.finish);
+    assert.equal(result.cancelled, false, 'The active sampler must finish its complete native window: ' + result.reason);
+    assert.equal(result.error, undefined);
+    succeeded = true;
+    return { ...result, activeCommands };
+  } finally {
+    try {
+      if (!page.isClosed()) await page.evaluate(() => { window.__mechanismTiming?.cancel('host-cleanup'); delete window.__mechanismTiming; });
+    } finally { await endProgress(succeeded); }
+  }
 }
 function fixtureTriangle(values, label) {
   assert.ok(Array.isArray(values) && values.length === 3 && values.every(point => point.length === 3 && point.every(Number.isFinite)), label + ': three finite world-space vertices required.');
@@ -350,12 +557,35 @@ try {
   assert.ok(Object.keys(fixtures.source || {}).length > 0, 'Geometry fixtures require source binding.');
   assert.deepEqual(fixtures.performance, mechanismPerformanceLimits, 'Stale measured performance contract; regenerate the mechanism input fixtures.');
   report.performanceHelperSha256 = hash(await readFile(new URL('./mechanism-performance.mjs', import.meta.url)));
+  report.observationHelperSha256 = hash(await readFile(new URL('./native-observation.mjs', import.meta.url)));
   assert.equal(fixtures.generator?.performanceHelperSha256, report.performanceHelperSha256, 'Performance evaluator changed; regenerate the mechanism input fixtures.');
   report.sourceBefore = await sourceDigests();
   for (const [path, sha] of Object.entries(fixtures.source)) assert.equal(report.sourceBefore[path], sha, 'Stale geometry fixture: ' + path);
   report.fixture = { path: relative(process.cwd(), fixturePath), sha256: hash(fixtureBytes), data: fixtures };
   report.harnessSha256 = hash(await readFile(new URL(import.meta.url)));
   report.checks.push('geometry-fixtures');
+
+  // Mandatory instrument proof on the normal entry point, before any server or browser.
+  await import('./check-native-observation.mjs');
+  const observationReportPath = resolve('output/phase10/native-observation/report.json');
+  const observationReportBytes = await readFile(observationReportPath), observationReport = JSON.parse(observationReportBytes);
+  assert.equal(observationReport.pass, true);
+  assert.equal(observationReport.sourceBefore['scripts/native-observation.mjs'], report.observationHelperSha256);
+  report.observationPreflight = { reportPath: relative(process.cwd(), observationReportPath), sha256: hash(observationReportBytes), source: observationReport.sourceBefore };
+  await import('./check-frame-work.mjs');
+  const recorderReportPath = resolve('output/phase10/frame-work/report.json');
+  const recorderReportBytes = await readFile(recorderReportPath), recorderReport = JSON.parse(recorderReportBytes);
+  assert.equal(recorderReport.pass, true);
+  for (const [path, sha256] of Object.entries(recorderReport.sourceBefore)) if (path.startsWith('src/')) {
+    assert.equal(report.sourceBefore[path], sha256, 'Recorder preflight must bind the same runtime source: ' + path);
+  }
+  report.recorderPreflight = { reportPath: relative(process.cwd(), recorderReportPath), sha256: hash(recorderReportBytes), source: recorderReport.sourceBefore };
+  await import('./check-mechanism-cadence.mjs');
+  const cadenceReportPath = resolve('output/phase10/mechanism-cadence/report.json');
+  const cadenceReportBytes = await readFile(cadenceReportPath), cadenceReport = JSON.parse(cadenceReportBytes);
+  assert.equal(cadenceReport.pass, true);
+  assert.equal(cadenceReport.sourceBefore['scripts/check-mechanism-input.mjs'], report.harnessSha256);
+  report.cadencePreflight = { reportPath: relative(process.cwd(), cadenceReportPath), sha256: hash(cadenceReportBytes), source: cadenceReport.sourceBefore };
 
   report.cleanupPreflight = { processInspectionSucceeded: Array.isArray(await processSnapshot()) };
 
@@ -379,7 +609,13 @@ try {
     await page.mouse.move(hoverPoint.x, hoverPoint.y); await frame(page);
     assert.equal(await page.evaluate(() => window.__tinyWorld.mechanismInput().hover), fixture.id);
     await capture(page, fixture.id + '-hover', false, true);
+    const priorOpenings = (await socialHistory(page)).openings.length;
     await pointerToggle(page, fixture); await settled(page, fixture.id, 1);
+    const recorded = (await socialHistory(page)).openings.slice(priorOpenings);
+    assert.equal(recorded.length, 1, 'Each real full pointer opening must append exactly one social input.');
+    assert.equal(recorded[0].mechanism, fixture.id); assert.equal(recorded[0].source, 'pointer');
+    const terminal = (await events(page)).findLast(event => event.id === fixture.id && event.type === 'opened');
+    assert.equal(recorded[0].lifeTime, terminal.lifeTime); assert.equal(recorded[0].mechanismTime, terminal.mechanismTime);
     sameCamera(beforeCamera, await camera(page), 'Clicking a mechanism must not orbit.');
     await capture(page, fixture.id + '-open');
     const detailViews = {
@@ -397,15 +633,15 @@ try {
     }
     await focusButton(page, fixture.id); await frame(page);
     await capture(page, fixture.id + '-focus');
-    await keyboardToggle(page, fixture.id);
-    await page.waitForFunction(id => { const row = window.__tinyWorld.mechanisms().find(item => item.id === id); return row.progress > .35 && row.progress < .65; }, fixture.id);
-    await page.evaluate(() => window.__tinyWorld.freezeMechanisms(true));
+    await commandPose(page, fixture.id, 450, () => keyboardToggle(page, fixture.id));
+    const closing = mechanism(await snapshots(page), fixture.id);
+    assert.ok(closing.progress > .35 && closing.progress < .65, 'Closing capture requires an actual intermediate pose after 450 ms of clamped exposure.');
     await capture(page, fixture.id + '-closing');
     await page.evaluate(() => window.__tinyWorld.freezeMechanisms(false));
     await settled(page, fixture.id, 0);
     await page.locator('canvas').focus(); await capture(page, fixture.id + '-closed-again');
   }
-  report.checks.push('pointer-openings');
+  report.checks.push('pointer-openings', 'social-events');
   assert.deepEqual(await sourceDigests(), report.sourceBefore, 'Source changed before the native state handoff.');
   await writeFile(resolve(output, 'native-states.json'), JSON.stringify({ schema: 1, source: report.sourceBefore,
     fixture: { path: report.fixture.path, sha256: report.fixture.sha256 }, harnessSha256: report.harnessSha256,
@@ -467,12 +703,13 @@ try {
   await cancelTrial(page, primary, 'Travel just over threshold', async point => { await page.mouse.move(point.x + 6, point.y); });
   report.checks.push('drag-cancellation');
 
-  await prepare(page, primary); await pointerToggle(page, primary);
-  await page.waitForFunction(id => { const row = window.__tinyWorld.mechanisms().find(item => item.id === id); return row.progress > .08 && row.progress < .92; }, primary.id);
+  await prepare(page, primary); await commandPose(page, primary.id, 300, () => pointerToggle(page, primary));
   const mid = mechanism(await snapshots(page), primary.id);
+  assert.ok(mid.progress > .08 && mid.progress < .92, 'Actual travel must reach a visible intermediate pose before reversal.');
   await keyboardToggle(page, primary.id);
   const reversed = mechanism(await snapshots(page), primary.id);
   assert.equal(reversed.target, 0); assert.ok(reversed.progress < .98, 'Reversal must not teleport to fully open first.');
+  await page.evaluate(() => window.__tinyWorld.freezeMechanisms(false));
   await settled(page, primary.id, 0);
   report.trials.push({ label: 'mid-transition reversal', mid, reversed }); report.checks.push('reversal');
 
@@ -487,12 +724,15 @@ try {
   }
   report.checks.push('occlusion');
 
-  await cancelTrial(page, primary, 'Wheel cancels pending click', async () => { await page.mouse.wheel(0, -120); await page.waitForTimeout(180); });
+  await cancelTrial(page, primary, 'Wheel cancels pending click', async () => { await page.mouse.wheel(0, -120); await expose(page, 'wheel-cancellation', 180); });
   const wheelView = await camera(page);
   await page.mouse.wheel(0, -120); await frame(page);
   changedCamera(wheelView, await camera(page), 'Ordinary wheel zoom must work after releasing the mouse gesture.');
   await cancelTrial(page, primary, 'WASD cancels even before translation', async () => { await page.keyboard.down('d'); await page.keyboard.up('d'); });
-  await cancelTrial(page, primary, 'Held WASD remains operational', async () => { await page.keyboard.down('d'); await page.waitForTimeout(250); await page.keyboard.up('d'); }, true);
+  await cancelTrial(page, primary, 'Held WASD remains operational', async () => {
+    await page.keyboard.down('d');
+    try { await expose(page, 'held-WASD-cancellation', 250); } finally { await page.keyboard.up('d'); }
+  }, true);
   for (const modifier of ['Shift', 'Control', 'Alt', 'Meta']) {
     await cancelTrial(page, primary, modifier + ' cancels pending click', async () => { await page.keyboard.down(modifier); await page.keyboard.up(modifier); });
     const point = await prepare(page, primary), before = await snapshots(page), seq = lastSeq(await events(page));
@@ -552,22 +792,29 @@ try {
   await page.locator('canvas').focus(); await page.keyboard.press('Space');
   assert.equal((await state(page)).paused, true); assert.equal((await state(page)).testFrozen, false);
   const pausedClock = await clocks(page);
+  const pausedSocial = await socialWorld(page), pausedInputs = (await socialHistory(page)).openings.length;
   await keyboardToggle(page, primary.id); await settled(page, primary.id, 0);
   assert.equal((await clocks(page)).life, pausedClock.life, 'Mechanisms must remain usable while ordinary life is paused.');
   assert.ok((await clocks(page)).mechanism > pausedClock.mechanism, 'Mechanism time is independent of paused life.');
   await keyboardToggle(page, primary.id, 'Space'); await settled(page, primary.id, 1);
   assert.equal((await state(page)).paused, true, 'Semantic Space must not resume paused life.');
+  assert.deepEqual(await socialWorld(page), pausedSocial, 'Paused real openings queue inputs without changing resident poses, phases or reservations.');
+  assert.equal((await socialHistory(page)).openings.length, pausedInputs + 1);
   const beforeReset = await snapshots(page);
   await page.locator('canvas').focus(); await page.keyboard.press('r');
   sameTargets(beforeReset, await snapshots(page), 'R resets only the camera.');
+  assert.deepEqual(await socialWorld(page), pausedSocial, 'R preserves social state and reservations.');
   report.checks.push('keyboard-isolation', 'pause-clocks');
 
   const reduced = await openPage('reduced-load', { reducedMotion: 'reduce' });
   await ready(reduced.page); assert.equal((await state(reduced.page)).paused, true);
   const reducedLife = (await clocks(reduced.page)).life;
+  const reducedSocial = await socialWorld(reduced.page), reducedInputs = (await socialHistory(reduced.page)).openings.length;
   await keyboardToggle(reduced.page, primary.id); await frame(reduced.page);
   assert.equal(mechanism(await snapshots(reduced.page), primary.id).progress, 1, 'Reduced motion must use the destination without a long transition.');
   assert.equal((await clocks(reduced.page)).life, reducedLife);
+  assert.deepEqual(await socialWorld(reduced.page), reducedSocial);
+  assert.equal((await socialHistory(reduced.page)).openings.length, reducedInputs + 1, 'Instant real opening must be retained despite frozen social time.');
   await capture(reduced.page, 'reduced-open'); await closePage(reduced.context);
   await page.emulateMedia({ reducedMotion: 'no-preference' }); await diagnosticClosed(page);
   await keyboardToggle(page, primary.id);
@@ -605,6 +852,7 @@ try {
   await frame(page);
   assert.deepEqual(commandEvents(await events(page), seq), [], 'Pointer-down alone must not activate before navigating away.');
   sameTargets(before, await snapshots(page), 'Pending gesture before navigation');
+  const beforeHistory = await socialHistory(page);
   intentionalNavigation.add(page);
   try { await page.goto('about:blank'); await page.goBack({ waitUntil: 'domcontentloaded' }); await ready(page); }
   finally { intentionalNavigation.delete(page); }
@@ -612,6 +860,9 @@ try {
   assert.equal(mechanism(await snapshots(page), primary.id).target, 1, 'Actual history return must preserve openness, including a non-BFCache reload.');
   await settled(page, primary.id, 1);
   assert.equal(mechanism(await snapshots(page), secondary.id).target, 0, 'History return must not complete the abandoned gesture.');
+  const returnedSocial = await socialHistory(page);
+  assert.deepEqual(returnedSocial.openings, beforeHistory.openings, 'Actual history return preserves the journal without replaying restore events as visitor openings.');
+  assert.ok(returnedSocial.time >= beforeHistory.time, 'History return must preserve social time instead of restarting the community.');
   report.lifecycle.actualHistory = await page.evaluate(oldDocument => {
     const navigation = performance.getEntriesByType('navigation')[0];
     return { method: 'actual navigation/back', sameDocument: oldDocument === window.__mechanismGate.documentToken,
@@ -627,11 +878,13 @@ try {
     window.__mechanismLoss = document.querySelector('canvas').getContext('webgl2').getExtension('WEBGL_lose_context');
     window.__mechanismLoss?.loseContext(); return !!window.__mechanismLoss;
   }), true, 'Actual graphics loss extension required.');
-  await page.waitForFunction(() => window.__tinyWorld.state().contextLost);
+  await expose(page, 'graphics-loss-delivery', 0, 250, 'native');
+  assert.equal((await state(page)).contextLost, true, 'Actual graphics loss must be delivered during native exposure.');
   await freezeBothObserved(page, 'Lost graphics');
   assert.equal(await page.locator('#error').isVisible(), true);
   await page.evaluate(() => window.__mechanismLoss.restoreContext());
-  await page.waitForFunction(() => !window.__tinyWorld.state().contextLost, null, { timeout: 10000 });
+  await expose(page, 'graphics-restoration-delivery', 0, 10000, 'native');
+  assert.equal((await state(page)).contextLost, false, 'Actual graphics restoration must complete during native exposure.');
   await page.mouse.up(); await noActivation(page, seq, before, 'Graphics restoration cancels gesture');
   assert.equal(mechanism(await snapshots(page), primary.id).progress, 1);
   assert.equal(await page.locator('#error').isVisible(), false);
@@ -646,6 +899,7 @@ try {
   }
   await focusButton(page, primary.id); await page.mouse.move(0, 0); await frame(page);
   const beforeResources = await metrics(page);
+  const cycleSocial = await socialWorld(page), cycleInputs = (await socialHistory(page)).openings.length;
   for (const key of ['geometries', 'textures', 'programs']) assert.ok(Number.isInteger(beforeResources[key]), 'Resource metric missing: ' + key);
   for (let cycle = 0; cycle < 100; cycle++) {
     await keyboardToggle(page, primary.id); await settled(page, primary.id, 1);
@@ -653,30 +907,40 @@ try {
   }
   await frame(page); const afterResources = await metrics(page);
   for (const key of ['geometries', 'textures', 'programs']) assert.equal(afterResources[key], beforeResources[key], '100 real open/close cycles must not grow ' + key);
+  assert.deepEqual(await socialWorld(page), cycleSocial, '100 frozen cycles must leave rendered social state and reservations unchanged.');
+  assert.equal((await socialHistory(page)).openings.length, cycleInputs + 100, 'The complete opening journal must outlive the256-event mechanism diagnostic ring.');
   report.resources = { cycles: 100, acceptedRealCommands: 200, before: beforeResources, after: afterResources };
   report.checks.push('resource-cycles');
 
   await page.emulateMedia({ reducedMotion: 'no-preference' }); await diagnosticClosed(page);
   await page.locator('canvas').focus(); await page.keyboard.press('r'); await ensureLifeRunning(page);
+  const resumedSocial = await socialWorld(page);
+  assert.ok(resumedSocial.actors.every(actor => actor.pendingReactions.length <= 3), 'At most one pending response per mechanism may remain per resident after frozen-cycle resumption.');
+  report.social = { frozenCycles: 100, recordedOpenings: 100, resumedTick: resumedSocial.tick, maximumPendingPerActor: Math.max(...resumedSocial.actors.map(actor => actor.pendingReactions.length)), preservedOnPauseResetHistoryAndSuspension: true };
+  report.checks.push('social-lifecycle');
   const sameView = await camera(page), sameViewMetrics = await metrics(page);
-  const baselineIntervals = await nativeTiming(page, 150);
+  const baselineSample = await nativeTiming(page, 150, primary.id);
   await focusButton(page, primary.id);
-  const activeStart = lastSeq(await events(page));
-  let activeFinished = false;
-  const activePromise = activeNativeTiming(page, 600).then(result => { activeFinished = true; return result; });
-  const activeCommands = [];
-  while (!activeFinished) {
-    await keyboardToggle(page, primary.id); activeCommands.push(mechanism(await snapshots(page), primary.id));
-    await page.waitForTimeout(450);
-  }
-  const activeResult = await activePromise;
-  const performanceResult = evaluateMechanismPerformance(sameViewMetrics, baselineIntervals, activeResult.samples);
-  const { baseline150: baselineTiming, active600: activeTiming, activeMinusBaselineMeanMs } = performanceResult;
+  const activeResult = await nativeTiming(page, 600, primary.id, true);
+  const performanceResult = evaluateMechanismPerformance(sameViewMetrics, baselineSample, activeResult);
+  const { baseline150: baselineTiming, active600: activeTiming, pairedWorkMeanDeltaMs, pairedNativeMeanDeltaMs, pairedDeltaRole } = performanceResult;
   report.timing = { sameView, metrics: sameViewMetrics, baseline150: baselineTiming, active600: activeTiming,
-    activeMinusBaselineMeanMs,
+    pairedWorkMeanDeltaMs, pairedNativeMeanDeltaMs, pairedDeltaRole,
     movingFrames: activeResult.movingFrames,
-    activeRealCommands: commandEvents(await events(page), activeStart).filter(event => event.source === 'keyboard').length, activeCommands };
-  assert.ok(report.timing.activeRealCommands >= 12, 'The active sample must contain repeated real commands throughout its duration.');
+    activeRealCommands: activeResult.commands.filter(event => event.id === primary.id && event.source === 'keyboard').length,
+    activeCommands: activeResult.activeCommands,
+    nativeWindow: { startSequence: activeResult.startSequence, endSequence: activeResult.endSequence,
+      timeOrigin: activeResult.timeOrigin, anchor: activeResult.anchor, frames: activeResult.frames, intervals: activeResult.samples },
+    stimulus: { policy: 'reverse near destination or after 45 completed samples minus observed input latency; coalesce requests', commands: activeResult.commands, witnesses: activeResult.witnesses } };
+  assert.equal(activeResult.samples.length, 600);
+  assert.equal(activeResult.frames.length, 600);
+  assert.ok(report.timing.activeRealCommands >= 12, 'Native-window stimulus capacity failed: fewer than 12 real keyboard commands landed inside 600 continuously sampled frames.');
+  const witnessed = activeResult.witnesses.filter(row => row.trusted && row.sampleIndex >= 0 && row.sampleIndex < 600 &&
+    activeResult.commands.some(event => event.sequence === row.sequence && event.id === primary.id && event.source === 'keyboard'));
+  assert.equal(witnessed.length, report.timing.activeRealCommands, 'Every credited command needs a trusted Enter event and an in-window native-frame witness.');
+  const commandBins = Array.from({ length: 6 }, (_, index) => witnessed.filter(row => Math.floor(row.sampleIndex / 100) === index).length);
+  report.timing.stimulus.commandBins = commandBins;
+  assert.ok(commandBins.every(count => count > 0), 'Stimulus must deliver actual commands in each 100-frame portion; no delayed burst/backfill can supply coverage.');
   assert.ok(activeResult.movingFrames >= 120, 'At least 20% of the 600-frame active sample must actually contain a moving mechanism.');
   report.performanceContract = performanceResult.limits;
   report.performanceViolations = performanceResult.violations;
@@ -692,10 +956,10 @@ try {
   const productionId = fixtures.production.id;
   assert.equal(await prod.evaluate(() => typeof window.__tinyWorld), 'undefined');
   await modelOnly(prod);
-  await prod.locator('canvas').focus(); await prod.keyboard.press('Space'); await prod.waitForTimeout(350);
+  await prod.locator('canvas').focus(); await prod.keyboard.press('Space'); await expose(prod, 'production-pause-exposure', 350);
   await focusButton(prod, productionId);
   const closedBytes = await capture(prod, 'production-closed', true);
-  await prod.waitForTimeout(250);
+  await expose(prod, 'production-paused-stability', 250);
   const closedStable = comparePixels(closedBytes, await prod.screenshot());
   assert.equal(closedStable.matches, true, 'Production life must really be paused before render comparisons.');
   const productionPoint = await project(prod, fixtures.production.point, sameView);
@@ -704,19 +968,20 @@ try {
   const openBytes = await capture(prod, 'production-open', true);
   const openedPixels = comparePixels(closedBytes, openBytes);
   assert.equal(openedPixels.matches, false, 'A real production pointer command must change geometry pixels.');
-  await prod.waitForTimeout(250);
+  await expose(prod, 'production-open-stability', 250);
   assert.equal(comparePixels(openBytes, await prod.screenshot()).matches, true, 'Open production pose must settle.');
   await prod.keyboard.press('Space'); await productionSettled(prod, 'Production semantic Space closing');
   const closedAgain = await capture(prod, 'production-closed-space', true);
   assert.equal(comparePixels(closedBytes, closedAgain).matches, true, 'Semantic Space must close exactly without resuming life.');
-  await prod.waitForTimeout(300);
+  await expose(prod, 'production-space-isolation', 300);
   assert.equal(comparePixels(closedAgain, await prod.screenshot()).matches, true, 'Space activation must stay isolated from global life.');
   await prod.keyboard.press('Enter'); await productionSettled(prod, 'Production Enter opening');
   const openAgain = await capture(prod, 'production-open-again', true);
-  await prod.locator('canvas').focus(); await prod.keyboard.down('d'); await prod.waitForTimeout(350); await prod.keyboard.up('d');
+  await prod.locator('canvas').focus(); await prod.keyboard.down('d');
+  try { await expose(prod, 'production-held-pan', 350); } finally { await prod.keyboard.up('d'); }
   const panned = await capture(prod, 'production-open-panned', true);
   assert.equal(comparePixels(openAgain, panned).matches, false, 'WASD remains usable with an open mechanism.');
-  await prod.keyboard.press('r'); await prod.waitForTimeout(250);
+  await prod.keyboard.press('r'); await expose(prod, 'production-reset-exposure', 250);
   await focusButton(prod, productionId);
   const resetOpen = await capture(prod, 'production-reset-still-open', true);
   assert.equal(comparePixels(openAgain, resetOpen).matches, true, 'R must restore the camera without closing the mechanism.');
@@ -727,6 +992,7 @@ try {
   assert.deepEqual(report.sourceAfter, report.sourceBefore, 'Runtime source changed during acceptance.');
   assert.deepEqual(await directoryDigests(productionDir), report.productionBuild.files, 'Production build changed during acceptance.');
   assert.equal(hash(await readFile(new URL('./mechanism-performance.mjs', import.meta.url))), report.performanceHelperSha256, 'Performance evaluator changed during acceptance.');
+  assert.equal(hash(await readFile(new URL('./native-observation.mjs', import.meta.url))), report.observationHelperSha256, 'Native observation helper changed during acceptance.');
   assert.deepEqual([...report.checks].sort(), [...required].sort(), 'Every declared behavior group must run.');
   assert.deepEqual(report.errors, [], 'No warning suppression: all runtime/console/network failures must be resolved.');
   assert.deepEqual(report.performanceFailures, [], 'Measured local performance contract exceeded; report for manager review rather than passing silently.');

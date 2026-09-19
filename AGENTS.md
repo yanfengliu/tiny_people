@@ -6,7 +6,7 @@ A browser miniature: 26 tiny residents live in a charcoal-and-coral Joy-Con-styl
 
 Current expansion, ownership and phases 8–11: `docs/work/1_controller-life-expansion/plan.md`. Accepted baseline and historical phases 1–7: `docs/work/0_procedural-people-world/plan.md`. The repo's own rules, including the colour reference and coordinate frame: [docs/policies/local-rules.md](docs/policies/local-rules.md). Defects the gates missed, with the check that now covers each: `docs/learning/defect-register.md`.
 
-<!-- FLEET-CANON:BEGIN sha=bb31c741ed27 generated from ../fleet/FLEET.md by `npm run sync-canon` — do not edit inside this block; this repo's own rules go in docs/policies/local-rules.md -->
+<!-- FLEET-CANON:BEGIN sha=95bcbcb491dd generated from ../fleet/FLEET.md by `npm run sync-canon` — do not edit inside this block; this repo's own rules go in docs/policies/local-rules.md -->
 ## Fleet constitution
 
 ### Fleet Orchestration Policy
@@ -31,7 +31,7 @@ Each assignment must identify its owner, outcome, relevant context, dependencies
 
 Use only capabilities actually available. Never assume visibility into other chats, shared memory, automatic messaging, workspace isolation, or persistent monitoring. Distinguish prepared assignments from dispatched work and observed status from assumptions. When delegation is unavailable — the session has no way to spawn a worker — work directly or provide an explicit handoff.
 
-Isolate concurrent edits with worktrees or equivalent mechanisms; otherwise serialize overlapping writes. Account for shared services, databases, ports, and compute limits. Never overwrite or discard another participant's work. Track delegated work through completion, cancellation, or handoff, and release only resources you own without losing work.
+Isolate concurrent edits in a worktree: a session or agent doing anything beyond a trivial read works in its own worktree by default, because two sessions in one tree invalidate each other's comparisons, gates, and commits. Serialize overlapping writes only when a worktree is genuinely unavailable, and say why. Finishing a worktree means merging its branch to main and pushing, in the same session — a worktree is never where work is left to sit. Remove it with `git worktree remove` once its branch is merged; a worktree still on disk after its work has landed is a defect to report, not housekeeping to defer, and a session that ends with one says so and where it is. Account for shared services, databases, ports, and compute limits. Never overwrite or discard another participant's work. Track delegated work through completion, cancellation, or handoff, and release only resources you own without losing work.
 
 #### Preserve state and decision boundaries
 
@@ -108,18 +108,26 @@ Do not declare the result fully verified while material findings or required che
 
 Node 24.12.0 (`.nvmrc`): a version mismatch is not a code failure. Before any commit that touches code:
 
+Run Vite-based gates sequentially within one checkout so their dependency-cache writes cannot race. The current acceptance status remains in `docs/work/1_controller-life-expansion/plan.md`.
+
 - `npm run typecheck` — `tsc --noEmit`.
 - `npm run build` — typecheck, then the Vite production build into ignored `dist/`.
 - `npm run audit` — `npm audit --audit-level=moderate`; a dependency change re-runs it.
 - `npm run check:routes` — all seven routes against the static geometry: footprints, stationary placements and 240 seconds of actor-pair separation.
 - `npm run check:plants` — actual plant meshes across variant seeds 0–4 at two scales, including closed leaf/pot edges, finite attributes, shared materials and soil/root contact with a raised-root negative control.
 - `npm run check:residents` — shoe soles on slopes, seated clearance and instancing capacity, with its own positive control.
+- `npm run check:social-state` — all 26 stable IDs, deterministic 30 Hz state/history, reciprocal reservations and prop ownership over 240 seconds, plus actual blocked-approach retreat and executed old-order controls for both garden pairs.
+- `npm run check:social-time` — actual community/model reset and tick counts at both sides of nanosecond rounding, equal-time pause, backward/explicit seek, restore and partitions; restoring the raw-time comparison must reproduce and reject repeated replay.
+- `npm run check:social-events` — direct mechanism-to-social delivery, real-source/travel filtering, restore exclusion and 100 frozen rail cycles beyond the diagnostic event ring.
+- `npm run check:social-approaches` — all five immutable supported approaches and 166 added footprints, with actual counter/roof/support controls; the seven legacy routes retain their separate coverage.
+- `npm run check:social-contact` — actual emitted hand, lip, prop and obstacle geometry plus a 240-second model timeline; garden order covers all completed cycles, while detailed gardening geometry samples the first completed cycle of each pair. Both executed old-order controls must fail.
 - `npm run check:buttons` — physical X/Y/A/B placement, stroke/counter geometry and face contact, with swapped, floating, inverted and missing-mark negative controls.
 - `npm run check:mechanism-state` — deterministic state/events across frame partitions, reversal and blocked cancellation, reduced motion and validated history restoration.
-- `node scripts/mechanism-performance.mjs --check` — paired raw 150/600-sample budget evaluation, exact violation-code controls, inclusive limits, strict slow-frame threshold and invalid/sparse-data rejection without a browser.
+- `node scripts/mechanism-performance.mjs --check` — synchronous CPU update/render-submission budgets over 150/600 completed frames, exact violation controls, cadence changes and missing/stale/overlapping-record rejection. Native frame intervals and paired work difference are diagnostics; this does not measure GPU completion.
 - `npm run check:mechanisms` — actual emitted full-sweep geometry for all three mechanisms, including 33 travel/support samples, eight combined endpoints, 12 activity times and intermediate-only obstruction controls.
-- `npm run check:mechanism-input` — regenerates source-bound triangle fixtures, then checks real surface picking, input/lifecycle contracts, 100 resource cycles and 150/600-frame timing samples in installed Chrome; run after building with `PLAYWRIGHT_CHANNEL=chrome` and the executable override unset.
+- `npm run check:mechanism-input` — regenerates source-bound triangle fixtures, then checks real surface picking, input/lifecycle contracts, 100 rail resource cycles and 150/600-frame CPU-work samples with distributed real input in installed Chrome; run after building with `PLAYWRIGHT_CHANNEL=chrome` and the executable override unset.
 - `npm run check:browser` and `npm run check:exploration` — headless Playwright runs driving real desktop drag, wheel and keyboard input; they need Chromium (`npx playwright install chromium`) and write their captures and SHA-256 manifests under ignored `output/`. The captures are the visual evidence: inspect them, because the interaction assertions alone establish neither geometry nor framing.
+- The browser gates run mandatory CPU proofs for their adaptive observations, runtime frame clamp and work recorder. Low, high and changing native cadence must receive adequate observations before assertions. Insufficient native discrimination is reported explicitly and requires the CPU mutation proof; callback stalls are incomplete verification.
 
 ## Invariants & boundaries
 

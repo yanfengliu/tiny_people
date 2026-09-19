@@ -11,7 +11,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createServer } from 'vite';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const sourcePaths = ['src/scene/controller.ts', 'src/scene/button-markings.ts', 'src/scene/geometry.ts', 'src/scene/materials.ts', 'src/scene/mechanism-types.ts', 'src/scene/mechanism-geometry.ts', 'src/scene/mechanism-clearance.ts', 'src/scene/community.ts', 'src/scene/physical-audit.ts', 'src/scene/residents.ts', 'src/scene/plants.ts', 'package-lock.json', 'scripts/check-mechanisms.mjs'];
+const sourcePaths = ['src/scene/controller.ts', 'src/scene/button-markings.ts', 'src/scene/geometry.ts', 'src/scene/materials.ts', 'src/scene/mechanism-types.ts', 'src/scene/mechanism-geometry.ts', 'src/scene/mechanism-clearance.ts', 'src/scene/community.ts', 'src/scene/physical-audit.ts', 'src/scene/residents.ts', 'src/scene/social-types.ts', 'src/scene/social-state.ts', 'src/scene/social-poses.ts', 'src/scene/plants.ts', 'package-lock.json', 'scripts/check-mechanisms.mjs'];
 const sourceHashes = Object.fromEntries(await Promise.all(sourcePaths.map(async path => [path, hash(await readFile(path))])));
 const owned = [], report = { sourceHashes };
 let vite;
@@ -232,7 +232,14 @@ try {
   for (const assembly of assemblies) assert.equal(clearance.checkLive(assembly.id, 0, 1).blocked, false, `${assembly.id} cannot open past live occupied geometry.`);
   report.firstLiveCheckMs = (performance.now() - liveStart) / assemblies.length;
   report.sweep = clearance.audit(); report.certificateMs = performance.now() - start;
-  assert.equal(report.sweep.routes, 7); assert.equal(report.sweep.routeSamples, 1089);
+  const originalRoutes = community.auditRoutes(), approaches = community.auditApproaches(), occupiedPaths = community.routeFootprints();
+  assert.equal(originalRoutes.routes, 7); assert.equal(originalRoutes.samples, 1089);
+  assert.deepEqual(approaches.failures, [], 'Every new approach must pass its finite body/support audit before sweep certification.');
+  assert.ok(approaches.approaches > 0 && approaches.samples > 0, 'The social approach audit must actually cover its authored paths.');
+  assert.equal(report.sweep.routes, new Set(occupiedPaths.map(point => point.route)).size);
+  assert.equal(report.sweep.routeSamples, 1089 + community.approachFootprints().length);
+  assert.equal(report.sweep.routeSamples, occupiedPaths.length, 'All original and new occupied footprints must enter the mechanical sweep.');
+  report.approaches = approaches;
   assert.equal(report.sweep.results.length, 3);
   assert.deepEqual(report.sweep.failures, [], `Full-sweep geometry failure: ${JSON.stringify(report.sweep.failures)}`);
   assert.ok(report.sweep.results.every(result => result.samples > 0 && result.narrowChecks > 0), 'Every mechanism must exercise actual internal narrow-phase geometry.');
@@ -351,8 +358,10 @@ try {
   Object.assign(report, { vertexSamples, maximumMeasuredTravelRatio, combinedEndpoints: 8, activityTimes: 12, obstruction, residentCount: community.snapshot().length });
   assert.equal(report.residentCount, 26);
   await mkdir('output/mechanisms', { recursive: true });
+  report.sourceAfter = Object.fromEntries(await Promise.all(sourcePaths.map(async path => [path, hash(await readFile(path))])));
   await writeFile('output/mechanisms/geometry-report.json', JSON.stringify(report, null, 2));
-  console.log(`PASS mechanisms: 3 assemblies, ${report.sweep.intervalCount} conservative intervals each, ${vertexSamples} vertex samples; 7 routes/${report.sweep.routeSamples} footprints, 8 combined endpoints and 12 resident activity times.`);
+  assert.deepEqual(report.sourceAfter, sourceHashes, 'Mechanism geometry/model/pose source must stay unchanged during the complete gate.');
+  console.log(`PASS mechanisms: 3 assemblies, ${report.sweep.intervalCount} conservative intervals each, ${vertexSamples} vertex samples; 7 legacy routes plus ${approaches.approaches} approaches/${report.sweep.routeSamples} total footprints, 8 combined endpoints and 12 resident activity times.`);
   console.log(`PASS mutations: intermediate-only actual resident obstruction and moved internal geometry rejected; transforms/poses preserved. Cold certificate ${report.certificateMs.toFixed(1)} ms; first live ${report.firstLiveCheckMs.toFixed(3)} ms, warm live ${report.warmLiveCheckMs.toFixed(3)} ms/check.`);
   }
   }

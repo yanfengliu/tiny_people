@@ -7,6 +7,8 @@ import { configureEnvironment } from './scene/environment';
 import { createMechanismState } from './scene/mechanism-state';
 import { createMechanismClearance } from './scene/mechanism-clearance';
 import { createMechanismInput } from './mechanism-input';
+import { createSocialOpeningBridge } from './scene/social-events';
+import { createFrameWorkRecorder } from './frame-work';
 
 const mount = document.querySelector<HTMLDivElement>('#scene')!;
 const error = document.querySelector<HTMLDivElement>('#error')!;
@@ -94,21 +96,27 @@ function startScene() {
   scene.add(controller);
   const community = createCommunity(controller);
   scene.add(community.group);
+  const socialHistoryKey = 'tinyPeopleSocialV1';
+  const restoredSocial = community.restoreSocial(history.state?.[socialHistoryKey]);
+  const nextOpeningSequence = community.socialHistory().openings.reduce((last, event) => Math.max(last, event.sequence), 0) + 1;
+  const socialOpenings = createSocialOpeningBridge(event => { community.opening(event); historyDirty = true; }, nextOpeningSequence);
   const assemblies = controllerMechanisms(controller);
   const clearance = createMechanismClearance(assemblies, community);
   const mechanisms = createMechanismState(assemblies.map(assembly => assembly.id),
     (id, progress) => assemblies.find(assembly => assembly.id === id)!.setProgress(progress),
     // Include the braking excursion after reversal, not only the path toward the new target.
-    id => !clearance.checkLive(id as typeof assemblies[number]['id'], 0, 1).blocked);
+    id => !clearance.checkLive(id as typeof assemblies[number]['id'], 0, 1).blocked,
+    socialOpenings.event);
   let mechanismInput: ReturnType<typeof createMechanismInput> | undefined;
   releaseFailedStartup = () => { mechanismInput?.dispose(); listeners.abort(); controls.dispose(); releaseScene(scene, renderer); };
 
   let view: 'overview' | 'free' = 'overview';
-  let worldTime = 0, previousFrame: number | undefined;
+  let worldTime = restoredSocial ? community.socialHistory().time : 0, previousFrame: number | undefined;
   let testFrozen = false, pauseRequested = false, allowReducedMotion = false;
   let mechanismsFrozen = false;
   let suspended = false, disposed = false, contextLost = false;
   let inputBeforeContextLoss = true;
+  const frameWork = import.meta.env.DEV ? createFrameWorkRecorder() : undefined;
   const paused = () => pauseRequested || (reducedMotion && !allowReducedMotion);
   const heldKeys = new Set<string>();
   const clearHeldKeys = () => heldKeys.clear();
@@ -134,22 +142,23 @@ function startScene() {
   const historyKey = 'tinyPeopleMechanismsV1';
   const savedMechanisms = history.state?.[historyKey];
   if (savedMechanisms?.version === 1) mechanisms.restore(savedMechanisms.states);
+  socialOpenings.reset(mechanisms.snapshot());
   let historyDirty = false, lastHistoryWrite = -Infinity;
-  function saveMechanisms(force = false) {
+  function saveWorldHistory(force = false) {
     historyDirty = true;
     const now = performance.now();
     // Rapid reversals share one history entry without flooding the browser's History API.
     if (!force && now - lastHistoryWrite < 200) return;
     try {
       const prior = history.state && typeof history.state === 'object' ? history.state : {};
-      history.replaceState({ ...prior, [historyKey]: { version: 1, states: mechanisms.snapshot() } }, '');
+      history.replaceState({ ...prior, [historyKey]: { version: 1, states: mechanisms.snapshot() }, [socialHistoryKey]: community.socialHistory() }, '');
     } catch { /* Restricted history does not prevent interaction or graphics recovery. */ }
     lastHistoryWrite = now; historyDirty = false;
   }
   function commandMechanism(id: string, source: 'pointer' | 'keyboard' | 'diagnostic') {
     if (disposed || suspended || contextLost || document.hidden || !controls.enabled) return;
     mechanisms.command(id, source, reducedMotion, worldTime);
-    saveMechanisms();
+    saveWorldHistory();
   }
   mechanismInput = createMechanismInput({ canvas, camera, scene, assemblies,
     enabled: () => !disposed && !suspended && !contextLost && !document.hidden && controls.enabled,
@@ -264,16 +273,20 @@ function startScene() {
 
   function animate(milliseconds: number) {
     if (disposed || suspended || contextLost || document.hidden) return;
+    const workTicket = import.meta.env.DEV ? frameWork!.begin(milliseconds) : undefined;
     const delta = previousFrame === undefined ? 0 : THREE.MathUtils.clamp((milliseconds - previousFrame) / 1000, 0, .05);
     if (!testFrozen && !paused()) worldTime += delta;
     previousFrame = milliseconds;
     translateCamera(delta);
-    community.update(worldTime);
+    socialOpenings.observe(mechanisms.snapshot());
     if (!mechanismsFrozen) mechanisms.advance(delta, worldTime, reducedMotion);
+    // Completions enter the social journal before its fixed ticks reach the same life time.
+    community.update(worldTime);
     controls.update();
     mechanismInput?.update(mechanisms.snapshot().some(state => state.progress !== state.target));
-    if (historyDirty) saveMechanisms();
+    if (historyDirty) saveWorldHistory();
     renderer.render(scene, camera);
+    if (import.meta.env.DEV) frameWork!.complete(workTicket!);
   }
 
   function resumeLoop() {
@@ -310,7 +323,7 @@ function startScene() {
     event.preventDefault();
     clearHeldKeys();
     mechanismInput?.cancel();
-    saveMechanisms(true);
+    saveWorldHistory(true);
     inputBeforeContextLoss = controls.enabled;
     controls.enabled = false;
     contextLost = true;
@@ -332,7 +345,7 @@ function startScene() {
   window.addEventListener('pagehide', event => {
     clearHeldKeys();
     mechanismInput?.cancel();
-    saveMechanisms(true);
+    saveWorldHistory(true);
     if (event.persisted) {
       suspended = true;
       previousFrame = undefined;
@@ -350,17 +363,20 @@ function startScene() {
     Object.assign(window, { __tinyWorld: {
       camera: () => ({ position: camera.position.toArray(), target: controls.target.toArray() }),
       metrics: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs?.length ?? 0 }),
-      setTime: (time: number) => { testFrozen = true; worldTime = time; community.update(time); },
+      frameWork: () => frameWork!.snapshot(),
+      setTime: (time: number) => { community.seek(time); testFrozen = true; worldTime = time; previousFrame = undefined; },
       resume: releaseTestClock,
       releaseTestClock,
       residents: () => community.snapshot(),
+      social: () => community.socialSnapshot(),
+      socialHistory: () => community.socialHistory(),
       routes: () => community.auditRoutes(),
       state: () => ({ time: worldTime, paused: paused(), reducedMotion, testFrozen, view, suspended, disposed, contextLost, heldKeys: [...heldKeys].sort() }),
       setInputEnabled: (enabled: boolean) => { controls.enabled = enabled; if (!enabled) { clearHeldKeys(); mechanismInput?.cancel(); } },
       mechanisms: mechanisms.snapshot,
       mechanismEvents: mechanisms.events,
       commandMechanism: (id: string) => commandMechanism(id, 'diagnostic'),
-      setMechanismProgress: (id: string, progress: number) => mechanisms.setProgress(id, progress),
+      setMechanismProgress: (id: string, progress: number) => { const changed = mechanisms.setProgress(id, progress); socialOpenings.reset(mechanisms.snapshot()); return changed; },
       freezeMechanisms: (frozen: boolean) => { mechanismsFrozen = frozen; previousFrame = undefined; },
       clocks: () => ({ life: worldTime, mechanism: mechanisms.time() }),
       mechanismInput: () => mechanismInput?.diagnostics(),

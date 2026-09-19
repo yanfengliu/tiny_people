@@ -26,14 +26,17 @@ export function createMechanismState(
   ids: readonly string[],
   apply: (id: string, progress: number) => void,
   canTravel: (id: string, from: number, to: number) => boolean,
+  onEvent?: (event: MechanismEvent) => void,
 ) {
   const states = ids.map(id => ({ id, progress: 0, velocity: 0, target: 0, phase: 'closed' as MechanismPhase }));
   const events: MechanismEvent[] = [];
   let tick = 0, remainder = 0, sequence = 0, lifeTime = 0;
   const sources = new Map<string, MechanismEvent['source']>();
   function emit(state: MechanismState, type: MechanismEvent['type']) {
-    events.push({ sequence: ++sequence, tick, mechanismTime: tick * STEP, lifeTime, id: state.id, type, source: sources.get(state.id) ?? 'diagnostic', progress: state.progress, target: state.target });
+    const event = { sequence: ++sequence, tick, mechanismTime: tick * STEP, lifeTime, id: state.id, type, source: sources.get(state.id) ?? 'diagnostic', progress: state.progress, target: state.target };
+    events.push(event);
     if (events.length > 256) events.shift();
+    onEvent?.({ ...event });
   }
   function resolve(state: MechanismState) {
     state.progress = state.target;

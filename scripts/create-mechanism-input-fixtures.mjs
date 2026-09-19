@@ -10,6 +10,7 @@ import { mechanismPerformanceLimits } from './mechanism-performance.mjs';
 
 const output = resolve(process.env.MECHANISM_INPUT_FIXTURE || 'output/phase8/mechanism-input-fixtures.json');
 const geometrySources = ['src/scene/controller.ts', 'src/scene/community.ts', 'src/scene/residents.ts',
+  'src/scene/social-types.ts', 'src/scene/social-state.ts', 'src/scene/social-poses.ts',
   'src/scene/plants.ts', 'src/scene/geometry.ts', 'src/scene/mechanism-types.ts', 'src/scene/mechanism-geometry.ts'];
 const views = {
   rail: { position: [-10, 6, 11], target: [-2.7, 1, -1] },

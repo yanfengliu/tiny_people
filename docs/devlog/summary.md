@@ -1,5 +1,7 @@
 # Devlog Summary
 
+- 2026-09-08: **Autonomous community verified in the primary checkout** — deterministic choices, reciprocal interactions and shared props pass model/contact and native input/lifecycle gates. Reviews caught repeated paused-time replay and gardening guidance after watering. The user's monitor-independent requirement replaces cadence-sensitive timing with bounded CPU submission work and adaptive input observations; six affected R2 gates pass. Final integrated review and manager acceptance remain pending.
+
 - 2026-09-05: **Immutable route caching closes the active-frame failure** — one profile isolated repeated route clearance work; a per-instance sample/route cache preserves live residents, exact collision results and returned-contact ownership. Meaningful cached/uncached controls and the normal root gate pass: active p95 33.3 → 17.6 ms, no intervals over 30 ms, unchanged 521 calls/1,083,740 triangles. The original failure and instrumented diagnosis remain history.
 
 - 2026-09-05: **Materials and miniature forms now read more clearly** — added source-defined surfaces, draped cloth, varied foliage/electronics and shaped garments/hair without changing HDR exposure or support. Independent review caught a missing watering-prop color attribute; the new resident contract rejects 24 actual mutations. Twelve root commands pass; three active-timing limits remain failed and whole-phase acceptance is pending.
