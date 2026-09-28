@@ -1,6 +1,6 @@
 # Pressable buttons and mouse joystick
 
-Status: active
+Status: complete
 Owner: Codex integration owner
 Created: 2026-09-28
 Updated: 2026-09-28
@@ -24,20 +24,30 @@ One input owner arbitrates physical controls, inspection clicks and camera drags
 - [x] Picking respects visible geometry; release outside, cancellation, focus/input/lifecycle interruption and graphics loss leave no stuck pose or delayed click.
 - [x] Actual emitted geometry clears collar, scenery and resident/route bounds through sampled tilt directions and lift poses, with rejected negative controls.
 - [x] Focused real-input checks, production checks, relevant full regression, native visual inspection and exact-revision independent review pass.
-- [ ] Concise README controls and agent contracts are documented; changes are merged to main, pushed and verified on GitHub Pages.
+- [x] Concise README controls and agent contracts are documented; changes are merged to main, pushed and verified on GitHub Pages.
 
 ## Implementation steps
 
 - [x] Agree scope and acceptance; implement geometry, transient state, input and accessible controls.
 - [x] Add focused geometry/state and real-input checks; repair integration failures.
-- [ ] Complete independent re-review, integration and publication.
+- [x] Complete independent re-review, integration and publication.
 
 ## Outcome
 
-Implementation began at `d32f28072d716347da79cdf43e2a429ca5fbf83d`. Review round 1 found F0: an obsolete key release could end a newer pointer-owned button press. Real-input checks reproduced that failure, then the same class through trusted key repeats. Explicit keyboard ownership and repeat handling now preserve the current pointer. A subsequent legacy regression found that full blur cancellation discarded a fresh rail click during native canvas focus transfer. A narrow handoff clears old keyboard state while retaining that forwarded pointer; actual focus departure still cancels physical gestures. Each failure was reproduced before repair. The original review is retained unchanged in [round 1](reviews/1_implementation.md); [Round 2](reviews/2_integration.md) approves the repaired source at `a21d7108113518d58a92baf21b95b0a0f588e89b`; F0 is closed with no material findings. Integration and publication remain pending.
+Implementation began at `d32f28072d716347da79cdf43e2a429ca5fbf83d`. Review round 1 found F0: an obsolete key release could end a newer pointer-owned button press. Real-input checks reproduced that failure, then the same class through trusted key repeats. Explicit keyboard ownership and repeat handling now preserve the current pointer. A subsequent legacy regression found that full blur cancellation discarded a fresh rail click during native canvas focus transfer. A narrow handoff clears old keyboard state while retaining that forwarded pointer; actual focus departure still cancels physical gestures. Each failure was reproduced before repair. The original review is retained unchanged in [round 1](reviews/1_implementation.md); [Round 2](reviews/2_integration.md) approves the repaired source at `a21d7108113518d58a92baf21b95b0a0f588e89b`; F0 is closed with no material findings. The approved implementation is now integrated and published, as recorded below.
 
 Node 24.12.0 typecheck, build and audit pass, with zero audit vulnerabilities and the existing bundle-size advisory. Every required CPU gate passed: routes, plants, residents, social state/time/events/approaches/contact, markings, physical controls, mechanism state, performance and mechanism geometry. Their geometry/simulation inputs remain unchanged by the later input-only repairs. The final affected browser regression passes on frozen source: mechanism input (20 groups, 100 real rail cycles, 150/600-frame CPU-work samples), camera/browser (17 views and ten moving walkers), exploration (13 groups and eighteen translations), and focused physical input (15 groups, 138 complete observations, 26 captures). All task browsers, child processes, contexts and local servers report complete cleanup.
 
 Earlier integration runs also found lost stationary hover after command reset and an insufficient Tab-search budget after adding six accessible buttons. `prepareCommand()` retains pointer coordinates while cancelling held poses, and the bounded Tab search includes the six new controls. Original hover, click-count and reachability assertions now pass. The focused input check covers stale Space/Enter releases and repeats, overlapping keys, joystick arrow repeats, real Tab-to-mouse handoff, focus departure, cancellation and production pixels without development hooks.
 
 The geometry check samples 400 joystick poses: five lift positions, five radial amounts and sixteen directions. It rejects four state mutations and two altered-geometry controls. Resident bounds use life time zero plus complete legacy and social-approach route envelopes. Minimum cap height is 2.022000074; largest shaft radius through the socket is 0.329553327 against a 0.34 bore. These are sampled clearance bounds, not a continuous or unlimited-duration proof. Native visual inspection covers all 26 focused captures, eleven mechanism states and three whole-scene views. No material visual defect was observed; exact inspected digests are retained for the integration review. Low-angle cap-center rise during downward tilt is intentional clearance geometry; direction checks use the actual cap axis.
+
+Publication: `666eea92d10856d94fb740ac8df2c576d5ca0121` was fast-forwarded into main and pushed. [GitHub Pages run 36458138506](https://github.com/yanfengliu/tiny_people/actions/runs/36458138506) completed its build and deployment successfully for that exact revision. The concise README retains the [live link](https://yanfengliu.github.io/tiny_people/) and explains the new controls. This closeout changes only documentation; reviewed application inputs remain unchanged.
+
+A separate headless run against the live site returned HTTP 200, found no development hooks or browser/HTTP errors, pressed and released all six buttons, dragged and recentered the joystick, opened it by click and closed it with Enter. Press/tilt changed actual production pixels and release returned exactly. Served JavaScript (`3c734662cda8924b1ebd9c38ecee50298fe0bdcf1dd7bb167863de3a8d0c1dda`) and CSS (`41e8765bfc924fd30bf1c6c091bdbabd05c636315e5e8367a0b5dfce01e7149b`) match the local Pages build byte-for-byte. The owner inspected live X-pressed, joystick-drag and joystick-lift captures at native resolution, with no material defect. Their SHA-256 digests follow:
+
+- button-X-pressed.png: `9865bc140b074dae591bbd7ef8be2cbfa1e31838be91b302f9669d0bd9336612`.
+- joystick-drag.png: `d00443e496ff38dd24e8c158fb9815ee3b601322a79c30d0ea95dc4e4328d64e`.
+- joystick-lift.png: `728004b99f40acb3154760e4c20e8c837c233a82720590531f4ab302ba7b2bc0`.
+
+The live browser and all eight observed process identities were closed, with no remaining owned process. Local checks also closed their browsers and servers. Temporary task evidence is removed at delivery after retaining the authored results and digest provenance. No material finding or required check remains open; the existing build chunk-size advisory and documented sampled-geometry/desktop-browser bounds remain.
