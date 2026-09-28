@@ -4,7 +4,7 @@
 
 A browser miniature: 26 tiny residents live in a charcoal-and-coral Joy-Con-style controller, sharing a button-side café, a joystick courtyard and two homes among its circuitry. Visitors orbit, zoom and pan; there is no game economy or objective system. Stack: Vite, TypeScript and Three.js, with every piece of geometry, lettering and material defined in `src/`; Node 24.12.0 is pinned in `.nvmrc` and dependencies are pinned exactly through `.npmrc`. The current target is desktop; mobile-specific work is a non-goal, and so is any runtime network service, external font, model download or raster reference in production visuals.
 
-Current expansion, ownership and phases 8–11: `docs/work/1_controller-life-expansion/plan.md`. Accepted baseline and historical phases 1–7: `docs/work/0_procedural-people-world/plan.md`. The repo's own rules, including the colour reference and coordinate frame: [docs/policies/local-rules.md](docs/policies/local-rules.md). Defects the gates missed, with the check that now covers each: `docs/learning/defect-register.md`.
+Current documentation and publication work: `docs/work/2_docs-and-pages/plan.md`. Accepted controller expansion and phases 8–11: `docs/work/1_controller-life-expansion/plan.md`. Accepted baseline and historical phases 1–7: `docs/work/0_procedural-people-world/plan.md`. The repo's own rules, including the colour reference and coordinate frame: [docs/policies/local-rules.md](docs/policies/local-rules.md). Defects the gates missed, with the check that now covers each: `docs/learning/defect-register.md`.
 
 <!-- FLEET-CANON:BEGIN sha=973eb18eaf96 generated from ../fleet/FLEET.md by `npm run sync-canon` — do not edit inside this block; this repo's own rules go in docs/policies/local-rules.md -->
 ## Fleet constitution
@@ -66,7 +66,7 @@ Obtain independent, preferably read-only review for substantial or high-risk cha
 
 Node 24.12.0 (`.nvmrc`): a version mismatch is not a code failure. Before any commit that touches code:
 
-Run Vite-based gates sequentially within one checkout so their dependency-cache writes cannot race. The current acceptance status remains in `docs/work/1_controller-life-expansion/plan.md`.
+Run Vite-based gates sequentially within one checkout so their dependency-cache writes cannot race. Accepted application checks and their bounds remain in `docs/work/1_controller-life-expansion/plan.md`; documentation and Pages acceptance is in `docs/work/2_docs-and-pages/plan.md`.
 
 - `npm run typecheck` — `tsc --noEmit`.
 - `npm run build` — typecheck, then the Vite production build into ignored `dist/`.
@@ -97,3 +97,48 @@ Run Vite-based gates sequentially within one checkout so their dependency-cache 
 ## Conventions
 
 Scene code lives in `src/scene/` — controller shell, geometry helpers, materials, environment, residents, community and the physical audit — and the checks live in `scripts/`. Record behaviour changes in `docs/devlog/summary.md`.
+
+## Documentation and publication
+
+The README is for people visiting the project. Keep its live link, short introduction, screenshots, controls and optional local setup easy to scan. Agent instructions, verification procedures, model internals and source maps belong here. Keep historical plans and reviews intact; record new work in its own `docs/work/<id>_<theme>/` folder.
+
+The public app is served at `https://yanfengliu.github.io/tiny_people/`. `.github/workflows/pages.yml` builds pushes to `main` and manual runs on `main`, then deploys only `dist/` through the `github-pages` environment. GitHub Pages must use GitHub Actions as its build source. The build uses `.nvmrc`, `npm ci` and `npm run build -- --base=/tiny_people/`; preserve this project-path base when reproducing or changing deployment. Default local development still serves at `/`. Keep third-party actions pinned to reviewed full commit SHAs, and keep Pages and OIDC write permissions in the deployment job.
+
+The three reviewed screenshots in `docs/showcase/` are versioned documentation assets. Reference images, other captures, dependencies, builds, browser artifacts and scratch work remain ignored. Preserve the original local reference and `LICENSE`. Production visuals require no raster image, external font, model download or runtime network service.
+
+## Maintenance context
+
+Camera reset changes only the camera. Camera movement and deliberate opening remain available while life is paused; openings made while paused stay queued until life advances. Space opens the focused physical part and otherwise toggles life. Reduced motion starts life paused, makes opening immediate and responds to preference changes; the ordinary life toggle can resume it. Camera keys ignore editable fields and modifier shortcuts, and held movement stops when the page loses focus or visibility. Nonvisual controls and instructions remain available to screen readers.
+
+A pure 30 Hz social model owns choices, interactions, reciprocal reservations and prop ownership. Presentation translates copied frames into resident and prop geometry. Five supported approaches supplement the seven legacy routes; circuit pairs retain their supported stationary positions. Gardening guidance precedes preparation, watering, drain, lowering and acknowledgment. Opening reactions can wait until an interaction ends.
+
+Social history stores a versioned life time and complete ordered opening journal for deterministic replay beside mechanism history, preserving unrelated history fields. Camera reset preserves world state. Graphics and persisted-page recovery retain the in-memory model. Actual history navigation and synthetic persisted events are separate checks; history return alone does not establish a browser-cache hit.
+
+Mechanism progress, velocity, target, phase and bounded events are authoritative. Continuous clearance checks use the actual internals, routes, bodies, furnishings and plants, including pairings and deliberate obstructions. Runtime checks revalidate live occupancy before moving. An obstruction holds the mechanism without relocating residents or props. Merged solid interiors use the union of authored volumes, including overlaps.
+
+### Verification details
+
+Install browser-test Chromium with `npx playwright install chromium`; `PLAYWRIGHT_CHANNEL=chrome` selects installed Chrome, and `PLAYWRIGHT_CHROMIUM_EXECUTABLE` can select a specific Chromium binary. The mechanism-input gate requires installed Chrome and the executable override unset. Preserve needed evidence before a gate replaces a report at its default output path. `check:browser` writes captures and hashes to `output/playwright/`; `check:exploration` uses `output/exploration/`. Inspect the captured bytes, because interaction assertions cannot establish geometry, text removal or framing.
+
+Camera checks freeze world time and independently observe transforms. A disabled-input control prevents moving people from masquerading as working camera controls. Separate ordinary-time checks confirm walking. Exploration checks cover real held-key movement, pause, model-only desktop rendering, reduced motion, history return, persisted-page suspension and unavailable/lost graphics recovery.
+
+Mechanism-input checks cover surface picking and occlusion, the five-pixel click/drag boundary, keyboard access, lifecycle recovery, production input and 100 real rail cycles. The active CPU-work window requires at least twelve distributed real commands and 120 moving frames. Native closed, intermediate, open, focus and restored captures require review; clearance alone does not establish a useful interior reveal.
+
+CPU-work limits cover synchronous updates and render submission: baseline/active means of 8/9 ms, p95 12 ms, maximum 40 ms and at most 5% strictly above 20 ms. Drawing is bounded at 525 calls and 1.11 million triangles. Native frame intervals and paired CPU mean difference remain diagnostics, not GPU-completion measurements. Browser checks adapt observations and command pacing to native cadence; required observations precede assertions, and stalled callbacks mean incomplete verification.
+
+The route gate samples seven routes at intervals no greater than .025 units, checks .085-radius footprints and 17 stationary bodies, and samples actor pairs over 240 seconds. Its mutations cover off-device travel, joystick intersection and a book inside a seated pelvis. Resident checks include transformed shoe vertices on slopes, seated clearance, head proportions, hand/prop surfaces, cup contact and watering drops against soil, with low-knee and detached-book controls. Plant checks include closed leaf/pot geometry, footprints, shared materials and roots touching soil, with a lifted-root control. Social state/contact checks cover 240 simulated seconds; detailed mesh sampling and native review have their own bounds and do not establish unlimited-duration behavior or clearance on every frame.
+
+### Source map
+
+- `src/main.ts` and `src/style.css`: camera, render lifecycle, accessible exploration and scene presentation.
+- `src/mechanism-input.ts`: visible-surface picking, click/drag arbitration and keyboard access.
+- `src/scene/controller.ts` and `button-markings.ts`: shell, physical controls, coral rail, PCB and source-drawn X/Y/A/B.
+- `src/scene/mechanism-state.ts`, `mechanism-clearance.ts` and `mechanism-geometry.ts`: motion authority, continuous clearance, occupancy and batched mechanism geometry.
+- `src/scene/community.ts`: café, courtyard, homes, ramp, routes and actual-geometry clearance.
+- `src/scene/social-state.ts`, `social-types.ts` and `social-events.ts`: deterministic model, contracts, replay history and direct opening delivery independent of the diagnostic event ring.
+- `src/scene/social-poses.ts` and `residents.ts`: contact-aware poses, walking/activity and material-specific instanced batches.
+- `src/scene/plants.ts`: broadleaf, herb and fern geometry, shared materials, pots and soil.
+- `src/scene/geometry.ts` and `physical-audit.ts`: geometry helpers and triangle/solid-volume checks that preserve hollow spaces.
+- `src/scene/environment.ts` and `materials.ts`: lighting, surroundings, contact shadows and deterministic plastic grain.
+
+Coordinates use Y up, negative Z toward the shoulder and negative X toward the rail. The surface is at Y=1.55 and the circuit board near Y=0.97. Face buttons are X north, A east, B south and Y west.
