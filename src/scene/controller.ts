@@ -4,6 +4,7 @@ import { brushedMetal, grainedPlastic } from './materials';
 import { batchMechanism, boundedProgress, hingeTravelBound, linearTravelBound, mechanismBox, socketGeometry } from './mechanism-geometry';
 import type { MechanismAssembly } from './mechanism-types';
 import { addFaceButtonMark } from './button-markings';
+import { createPhysicalControls, type PressableButton, type PhysicalControls } from './physical-controls';
 
 function plastic(color: string, roughness = .65, metalness = 0) { return new THREE.MeshStandardMaterial({ color, roughness, metalness }); }
 
@@ -13,10 +14,15 @@ export function controllerMechanisms(controller: THREE.Group): MechanismAssembly
   return controller.userData.mechanisms ?? [];
 }
 
+export function controllerPhysicalControls(controller: THREE.Group): PhysicalControls {
+  return controller.userData.physicalControls;
+}
+
 export function createController() {
   const group = new THREE.Group();
   group.name = 'joy-con';
   const mechanisms: MechanismAssembly[] = [];
+  const buttons: PressableButton[] = [];
   group.userData.mechanisms = mechanisms;
   const charcoal = grainedPlastic('#3a3b3d', .76,.006);
   const side = grainedPlastic('#303235',.8,.003);
@@ -188,16 +194,25 @@ export function createController() {
     setProgress(progress) { railPivot.rotation.z = railAngle * boundedProgress(progress); railRoot.updateMatrixWorld(true); },
   });
 
+  function registerButton(id: string, label: string, root: THREE.Group, travel: number) {
+    const pickMeshes: THREE.Mesh[] = [];
+    root.traverse(object => { if (object instanceof THREE.Mesh) pickMeshes.push(object); });
+    root.name = id; buttons.push({ id, label, root, pickMeshes, travel });
+  }
   // Right Joy-Con: X north, A east, B south, Y west, joystick below.
   for (const [x, z, mark] of [[.45,-5.05,'X'],[1.51,-4,'A'],[.45,-2.95,'B'],[-.61,-4,'Y']] as const) {
     solid(new THREE.CylinderGeometry(.64,.64,.06,96),seam,group,x,1.56,z);
-    solid(new THREE.CylinderGeometry(.595,.625,.21,96),rubber,group,x,1.68,z);
-    solid(new THREE.CylinderGeometry(.56,.59,.075,96),charcoal,group,x,1.815,z);
-    addFaceButtonMark(group,mark,x,z);
+    const button = new THREE.Group(); group.add(button);
+    solid(new THREE.CylinderGeometry(.595,.625,.21,96),rubber,button,x,1.68,z);
+    solid(new THREE.CylinderGeometry(.56,.59,.075,96),charcoal,button,x,1.815,z);
+    addFaceButtonMark(button,mark,x,z);
+    registerButton('button-' + mark, mark + ' button', button, .075);
   }
   box(group,seam,[.66,.055,.66],[-1.52,1.56,-5.5],.15);
-  box(group,rubber,[.66,.15,.22],[-1.52,1.65,-5.5],.035);
-  box(group,rubber,[.22,.15,.66],[-1.52,1.65,-5.5],.035);
+  const plus = new THREE.Group(); group.add(plus);
+  box(plus,rubber,[.66,.15,.22],[-1.52,1.65,-5.5],.035);
+  box(plus,rubber,[.22,.15,.66],[-1.52,1.65,-5.5],.035);
+  registerButton('button-plus', 'Plus button', plus, .035);
 
   const stickX = -.25, stickZ = .18;
   const stickRoot = new THREE.Group(); stickRoot.name = 'joystick-assembly'; group.add(stickRoot);
@@ -229,23 +244,40 @@ export function createController() {
   const stickShaftBatch = batchMechanism(stickShaft,'joystick-shaft');
   const shaftAnchor = new THREE.Group(); shaftAnchor.position.y = shaftBottom;
   stickShaftBatch.group.position.y = -shaftBottom; shaftAnchor.add(stickShaftBatch.group);
-  stickRoot.add(stickFixedBatch.group,stickCapBatch.group,shaftAnchor);
+  // The cap and its telescopic shaft share one pivot, so their bearing stays attached.
+  const stickPivot = new THREE.Group(); stickPivot.position.set(stickX, shaftBottom, stickZ);
+  const stickMoving = new THREE.Group(); stickMoving.position.set(-stickX, -shaftBottom, -stickZ);
+  stickMoving.add(stickCapBatch.group, shaftAnchor); stickPivot.add(stickMoving);
+  stickRoot.add(stickFixedBatch.group, stickPivot);
   const stickMovingMeshes = [...stickCapBatch.meshes,...stickShaftBatch.meshes], stickLift = .42;
-  const setStickProgress = (progress: number) => {
-    const amount = boundedProgress(progress);
-    stickCapBatch.group.position.y = stickLift * amount;
-    shaftAnchor.scale.y = 1 + stickLift / shaftHeight * amount;
+  let stickProgress = 0, tiltX = 0, tiltZ = 0;
+  const stickUp = new THREE.Vector3(0, 1, 0), stickDirection = new THREE.Vector3();
+  function applyStickPose() {
+    const magnitude = Math.hypot(tiltX, tiltZ), angle = magnitude * .10;
+    // Lift the low cap edge clear of the unchanged collar as the shaft leans in its socket.
+    const extension = stickLift * stickProgress + 1.2 * Math.sin(angle);
+    stickCapBatch.group.position.y = extension;
+    shaftAnchor.scale.y = 1 + extension / shaftHeight;
+    // Raise the bearing just enough that the tilted shaft bottom also clears the solid base.
+    stickPivot.position.y = shaftBottom + .32 * Math.sin(angle);
+    stickDirection.set(magnitude ? tiltX / magnitude * Math.sin(angle) : 0,
+      Math.cos(angle), magnitude ? tiltZ / magnitude * Math.sin(angle) : 0);
+    stickPivot.quaternion.setFromUnitVectors(stickUp, stickDirection);
     stickRoot.updateMatrixWorld(true);
-  };
+  }
+  const setStickProgress = (progress: number) => { stickProgress = boundedProgress(progress); applyStickPose(); };
+  group.userData.physicalControls = createPhysicalControls(buttons, (x, z) => { tiltX = x; tiltZ = z; applyStickPose(); });
   mechanisms.push({
     id:'joystick', label:'Joystick inspection lift', root:stickRoot,
     pickMeshes:stickCapBatch.meshes, movingMeshes:stickMovingMeshes, fixedMeshes:stickFixedBatch.meshes,
     maximumPointTravel:linearTravelBound(stickMovingMeshes,setStickProgress), setProgress:setStickProgress,
   });
   cylinder(group,seam,.30,.035,1.65,1.565,1.75);
-  cylinder(group,rubber,.255,.09,1.65,1.62,1.75);
-  line(group, ink, [[1.51,1.675,1.75],[1.65,1.675,1.61],[1.79,1.675,1.75]].map(p=>new THREE.Vector3(...p)),.016);
-  line(group, ink, [[1.55,1.675,1.71],[1.55,1.675,1.88],[1.75,1.675,1.88],[1.75,1.675,1.71]].map(p=>new THREE.Vector3(...p)),.014);
+  const home = new THREE.Group(); group.add(home);
+  cylinder(home,rubber,.255,.09,1.65,1.62,1.75);
+  line(home, ink, [[1.51,1.675,1.75],[1.65,1.675,1.61],[1.79,1.675,1.75]].map(p=>new THREE.Vector3(...p)),.016);
+  line(home, ink, [[1.55,1.675,1.71],[1.55,1.675,1.88],[1.75,1.675,1.88],[1.75,1.675,1.71]].map(p=>new THREE.Vector3(...p)),.014);
+  registerButton('button-home', 'Home button', home, .025);
 
   // Rear service cap opens up/back; its real well reveals a fixed lever and return spring.
   const shoulderRoot = new THREE.Group(); shoulderRoot.name = 'shoulder-assembly'; group.add(shoulderRoot);

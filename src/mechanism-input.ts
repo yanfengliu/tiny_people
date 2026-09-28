@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import type { MechanismAssembly } from './scene/mechanism-types';
+import type { PhysicalControls } from './scene/physical-controls';
 
 interface InputOptions {
   canvas: HTMLCanvasElement;
   camera: THREE.PerspectiveCamera;
   scene: THREE.Scene;
   assemblies: MechanismAssembly[];
+  physical: PhysicalControls;
+  reducedMotion: () => boolean;
   enabled: () => boolean;
   cameraKeysHeld: () => boolean;
   toggle: (id: string, source: 'pointer' | 'keyboard') => void;
@@ -13,11 +16,12 @@ interface InputOptions {
 }
 
 export function createMechanismInput(options: InputOptions) {
-  const { canvas, camera, scene, assemblies } = options;
+  const { canvas, camera, scene, assemblies, physical } = options;
   const listeners = new AbortController(), signal = listeners.signal;
   const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
-  const pickMeshes = assemblies.flatMap(assembly => assembly.pickMeshes);
-  const membership = new Map(pickMeshes.map(mesh => [mesh, assemblies.find(assembly => assembly.pickMeshes.includes(mesh))!.id]));
+  const targets = [...assemblies, ...physical.buttons];
+  const pickMeshes = targets.flatMap(target => target.pickMeshes);
+  const membership = new Map(pickMeshes.map(mesh => [mesh, targets.find(target => target.pickMeshes.includes(mesh))!.id]));
   const rendered: THREE.Mesh[] = [];
   scene.traverse(object => {
     if (object instanceof THREE.Mesh) {
@@ -30,6 +34,8 @@ export function createMechanismInput(options: InputOptions) {
   const forwardedPointers = new Set<number>();
   let cancelling = false, wasMoving = false;
   let candidate: { id: string; pointerId: number; x: number; y: number; position: THREE.Vector3; quaternion: THREE.Quaternion } | undefined;
+  let gesture: { id: string; pointerId: number; x: number; y: number; dragged: boolean; right: THREE.Vector3; up: THREE.Vector3 } | undefined;
+  const stickKeys = new Set<string>();
   let hover: string | undefined, focused: string | undefined, dirty = false, lastX = -1, lastY = -1;
   const lastProgress = new Map(options.snapshots().map(state => [state.id, state.progress]));
   const lastPosition = camera.position.clone(), lastQuaternion = camera.quaternion.clone();
@@ -71,6 +77,9 @@ export function createMechanismInput(options: InputOptions) {
     const tracked = [...forwardedPointers];
     forwardedPointers.clear();
     candidate = undefined;
+    const owned = gesture; gesture = undefined;
+    stickKeys.clear(); physical.reset();
+    if (owned && canvas.hasPointerCapture(owned.pointerId)) canvas.releasePointerCapture(owned.pointerId);
     if (!retainActive) heldPointers.clear();
     hover = undefined;
     lastX = lastY = -1;
@@ -85,17 +94,50 @@ export function createMechanismInput(options: InputOptions) {
     } finally { cancelling = false; }
   }
   function modified(event: MouseEvent | PointerEvent) { return event.altKey || event.ctrlKey || event.metaKey || event.shiftKey; }
+  function prepareCommand() {
+    // Deliberate opening ends held poses, but a stationary mouse still needs an
+    // endpoint hover pick after an immediate reduced-motion command.
+    const x = lastX, y = lastY;
+    cancel();
+    lastX = x; lastY = y; dirty = true;
+  }
+  function screenAxes() {
+    const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
+    const up = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), right).normalize();
+    return { right, up };
+  }
+  function tiltFromScreen(x: number, y: number, axes = screenAxes()) {
+    const direction = axes.right.clone().multiplyScalar(x).addScaledVector(axes.up, -y);
+    physical.tilt(direction.x, direction.z);
+  }
+  function movingStick() { return options.snapshots().some(state => state.id === 'joystick' && state.progress !== state.target); }
   canvas.addEventListener('pointerdown', event => {
     heldPointers.add(event.pointerId);
     // A second pointer cancels this desktop gesture before OrbitControls can create a mixed-pointer state.
     if (heldPointers.size !== 1 || !options.enabled()) { cancel(undefined, true); event.stopImmediatePropagation(); return; }
-    forwardedPointers.add(event.pointerId);
-    if (!event.isPrimary || event.button !== 0 || modified(event) || options.cameraKeysHeld()) { candidate = undefined; return; }
+    if (!event.isPrimary || event.button !== 0 || modified(event) || options.cameraKeysHeld()) { forwardedPointers.add(event.pointerId); candidate = undefined; return; }
     const id = pick(event.clientX, event.clientY);
+    if (id && (id === 'joystick' || physical.buttons.some(button => button.id === id))) {
+      // Physical controls own the complete pointer stream; OrbitControls never sees its down.
+      candidate = undefined; stickKeys.clear(); physical.reset();
+      gesture = { id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, dragged: false, ...screenAxes() };
+      if (id !== 'joystick') physical.press(id, true);
+      canvas.setPointerCapture(event.pointerId);
+      event.preventDefault(); event.stopImmediatePropagation(); return;
+    }
+    forwardedPointers.add(event.pointerId);
     candidate = id ? { id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, position: camera.position.clone(), quaternion: camera.quaternion.clone() } : undefined;
   }, { capture: true, signal });
   canvas.addEventListener('pointermove', event => {
     lastX = event.clientX; lastY = event.clientY; dirty = true;
+    if (gesture?.pointerId === event.pointerId) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (modified(event) || !options.enabled() || options.cameraKeysHeld()) { cancel(); return; }
+      const x = event.clientX - gesture.x, y = event.clientY - gesture.y;
+      gesture.dragged ||= Math.hypot(x, y) > 5;
+      if (gesture.id === 'joystick' && gesture.dragged && !movingStick()) tiltFromScreen(x / 65, y / 65, gesture);
+      return;
+    }
     if (heldPointers.size > 1 || (event.buttons !== 0 && !forwardedPointers.has(event.pointerId))) { event.stopImmediatePropagation(); return; }
     if (!candidate || candidate.pointerId !== event.pointerId) return;
     const travel = Math.hypot(event.clientX - candidate.x, event.clientY - candidate.y);
@@ -104,6 +146,15 @@ export function createMechanismInput(options: InputOptions) {
     event.stopImmediatePropagation();
   }, { capture: true, signal });
   canvas.addEventListener('pointerup', event => {
+    if (gesture?.pointerId === event.pointerId) {
+      const down = gesture; gesture = undefined;
+      heldPointers.delete(event.pointerId);
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      physical.press(down.id, false, options.reducedMotion()); physical.tilt(0, 0);
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (down.id === 'joystick' && !down.dragged && Math.hypot(event.clientX - down.x, event.clientY - down.y) <= 5 && !modified(event) && options.enabled() && !options.cameraKeysHeld() && pick(event.clientX, event.clientY) === down.id) options.toggle(down.id, 'pointer');
+      return;
+    }
     const down = candidate;
     candidate = undefined;
     heldPointers.delete(event.pointerId);
@@ -115,16 +166,21 @@ export function createMechanismInput(options: InputOptions) {
   canvas.addEventListener('pointercancel', cancel, { capture: true, signal });
   canvas.addEventListener('lostpointercapture', event => {
     // A normal up has already removed this ID. Unexpected capture loss must also end OrbitControls.
-    if (forwardedPointers.has(event.pointerId)) cancel();
+    if (forwardedPointers.has(event.pointerId) || gesture?.pointerId === event.pointerId) cancel();
     candidate = undefined; heldPointers.delete(event.pointerId);
   }, { signal });
   canvas.addEventListener('pointerleave', () => { hover = undefined; lastX = lastY = -1; dirty = true; }, { signal });
-  canvas.addEventListener('wheel', () => { candidate = undefined; dirty = true; }, { capture: true, passive: true, signal });
+  canvas.addEventListener('wheel', () => { cancel(); dirty = true; }, { capture: true, passive: true, signal });
   window.addEventListener('keydown', event => {
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || ['w', 'a', 's', 'd', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown', '+', '=', '-', '_', 'r', ' '].includes(event.key.toLowerCase())) candidate = undefined;
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) { cancel(); return; }
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || ['w', 'a', 's', 'd', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown', '+', '=', '-', '_', 'r', ' '].includes(event.key.toLowerCase())) {
+      candidate = undefined;
+      if (gesture) cancel();
+    }
   }, { capture: true, signal });
   window.addEventListener('blur', cancel, { signal });
   document.addEventListener('visibilitychange', cancel, { signal });
+  window.addEventListener('pagehide', cancel, { signal });
   const buttons = assemblies.map(assembly => {
     const button = document.createElement('button');
     button.type = 'button'; button.className = 'sr-only'; button.dataset.mechanismId = assembly.id;
@@ -134,16 +190,52 @@ export function createMechanismInput(options: InputOptions) {
     button.addEventListener('focus', () => { focused = assembly.id; dirty = true; }, { signal });
     button.addEventListener('blur', () => { focused = undefined; dirty = true; }, { signal });
     button.addEventListener('keydown', event => {
+      if (assembly.id === 'joystick' && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+        event.preventDefault(); event.stopPropagation();
+        if (!gesture && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && options.enabled() && !movingStick()) {
+          stickKeys.add(event.key);
+          tiltFromScreen(Number(stickKeys.has('ArrowRight')) - Number(stickKeys.has('ArrowLeft')), Number(stickKeys.has('ArrowDown')) - Number(stickKeys.has('ArrowUp')));
+        }
+        return;
+      }
       if (event.key !== ' ' && event.key !== 'Enter') return;
       event.preventDefault(); event.stopPropagation();
       if (!event.repeat && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && options.enabled()) options.toggle(assembly.id, 'keyboard');
     }, { signal });
-    button.addEventListener('keyup', event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); } }, { signal });
+    button.addEventListener('keyup', event => {
+      if (assembly.id === 'joystick' && stickKeys.delete(event.key)) {
+        event.preventDefault(); event.stopPropagation();
+        tiltFromScreen(Number(stickKeys.has('ArrowRight')) - Number(stickKeys.has('ArrowLeft')), Number(stickKeys.has('ArrowDown')) - Number(stickKeys.has('ArrowUp')));
+      }
+      if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); }
+    }, { signal });
+    button.addEventListener('blur', () => { stickKeys.clear(); physical.reset(); }, { signal });
     button.addEventListener('click', event => { event.stopPropagation(); if (options.enabled()) options.toggle(assembly.id, 'keyboard'); }, { signal });
     canvas.parentElement!.appendChild(button);
     return button;
   });
-  function update(moving = false) {
+  const pressButtons = physical.buttons.map(part => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'sr-only'; button.dataset.physicalControl = part.id;
+    button.textContent = part.label; button.setAttribute('aria-describedby', 'keyboard-help');
+    button.addEventListener('focus', () => { focused = part.id; dirty = true; }, { signal });
+    button.addEventListener('blur', () => { focused = undefined; physical.reset(); dirty = true; }, { signal });
+    button.addEventListener('keydown', event => {
+      if (event.key !== ' ' && event.key !== 'Enter') return;
+      event.preventDefault(); event.stopPropagation();
+      if (!event.repeat && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && options.enabled()) physical.press(part.id, true);
+    }, { signal });
+    button.addEventListener('keyup', event => {
+      if (event.key !== ' ' && event.key !== 'Enter') return;
+      event.preventDefault(); event.stopPropagation(); physical.press(part.id, false, options.reducedMotion());
+    }, { signal });
+    // Screen-reader activation has no held key; show the same bounded tap response.
+    button.addEventListener('click', event => { event.stopPropagation(); if (options.enabled()) { physical.press(part.id, true); physical.press(part.id, false, options.reducedMotion()); } }, { signal });
+    canvas.parentElement!.appendChild(button); return button;
+  });
+  function update(moving = false, delta = 0) {
+    physical.update(delta);
+    if (movingStick()) { physical.tilt(0, 0); stickKeys.clear(); }
     const states = options.snapshots();
     for (const state of states) {
       if (lastProgress.get(state.id) !== state.progress) dirty = true;
@@ -157,7 +249,7 @@ export function createMechanismInput(options: InputOptions) {
     }
     if (moving || wasMoving) dirty = true;
     wasMoving = moving;
-    if (!options.enabled()) { hover = undefined; candidate = undefined; }
+    if (!options.enabled()) { cancel(); }
     else if (dirty && lastX >= 0 && !heldPointers.size) hover = pick(lastX, lastY);
     const focus = options.enabled() && document.hasFocus() ? focused : undefined;
     for (const record of materialRecords) {
@@ -172,13 +264,13 @@ export function createMechanismInput(options: InputOptions) {
       });
     }
     for (const state of states) buttons.find(button => button.dataset.mechanismId === state.id)?.setAttribute('aria-pressed', String(state.target > .5));
-    canvas.style.cursor = hover && options.enabled() ? 'pointer' : '';
+    canvas.style.cursor = gesture?.id === 'joystick' ? 'grabbing' : hover && options.enabled() ? (hover === 'joystick' ? 'grab' : 'pointer') : '';
     dirty = false;
   }
   function dispose() {
     cancel(); listeners.abort();
-    for (const button of buttons) button.remove();
+    for (const button of [...buttons, ...pressButtons]) button.remove();
     for (const record of materialRecords) { record.mesh.material = record.original; for (const material of record.materials) material.dispose(); }
   }
-  return { cancel, update, dispose, diagnostics: () => ({ hover, focused, pending: candidate?.id, pickingMilliseconds: [...pickTimes] }) };
+  return { cancel, prepareCommand, update, dispose, diagnostics: () => ({ hover, focused, pending: candidate?.id, gesture: gesture?.id, physical: physical.snapshot(), pickingMilliseconds: [...pickTimes] }) };
 }

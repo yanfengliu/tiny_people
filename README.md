@@ -20,7 +20,11 @@ Open it in a desktop browser, then orbit, zoom and look closer. You can even ope
 | Return to the overview | **R** |
 | Pause or resume the residents | **Space**, when no movable part is focused |
 | Peek inside | Click the coral side rail, rear shoulder housing or joystick cap |
+| Press a button | Hold any face button, **+** or home button |
+| Move the joystick | Drag its cap; release to center it |
 | Open a part with the keyboard | **Tab** to highlight a part, then **Enter** or **Space** |
+
+With a button focused, hold **Enter** or **Space** to press it. With the joystick focused, hold the **arrow keys** to tilt it.
 
 You can still explore while the residents are paused. If your device requests reduced motion, life starts paused and the movable parts open instantly.
 

@@ -4,7 +4,7 @@
 
 A browser miniature: 26 tiny residents live in a charcoal-and-coral Joy-Con-style controller, sharing a button-side café, a joystick courtyard and two homes among its circuitry. Visitors orbit, zoom and pan; there is no game economy or objective system. Stack: Vite, TypeScript and Three.js, with every piece of geometry, lettering and material defined in `src/`; Node 24.12.0 is pinned in `.nvmrc` and dependencies are pinned exactly through `.npmrc`. The current target is desktop; mobile-specific work is a non-goal, and so is any runtime network service, external font, model download or raster reference in production visuals.
 
-Current documentation and publication work: `docs/work/2_docs-and-pages/plan.md`. Accepted controller expansion and phases 8–11: `docs/work/1_controller-life-expansion/plan.md`. Accepted baseline and historical phases 1–7: `docs/work/0_procedural-people-world/plan.md`. The repo's own rules, including the colour reference and coordinate frame: [docs/policies/local-rules.md](docs/policies/local-rules.md). Defects the gates missed, with the check that now covers each: `docs/learning/defect-register.md`.
+Current physical-control work: `docs/work/3_pressable-controls/plan.md`. Accepted documentation and publication: `docs/work/2_docs-and-pages/plan.md`. Accepted controller expansion and phases 8–11: `docs/work/1_controller-life-expansion/plan.md`. Accepted baseline and historical phases 1–7: `docs/work/0_procedural-people-world/plan.md`. The repo's own rules, including the colour reference and coordinate frame: [docs/policies/local-rules.md](docs/policies/local-rules.md). Defects the gates missed, with the check that now covers each: `docs/learning/defect-register.md`.
 
 <!-- FLEET-CANON:BEGIN sha=973eb18eaf96 generated from ../fleet/FLEET.md by `npm run sync-canon` — do not edit inside this block; this repo's own rules go in docs/policies/local-rules.md -->
 ## Fleet constitution
@@ -66,7 +66,7 @@ Obtain independent, preferably read-only review for substantial or high-risk cha
 
 Node 24.12.0 (`.nvmrc`): a version mismatch is not a code failure. Before any commit that touches code:
 
-Run Vite-based gates sequentially within one checkout so their dependency-cache writes cannot race. Accepted application checks and their bounds remain in `docs/work/1_controller-life-expansion/plan.md`; documentation and Pages acceptance is in `docs/work/2_docs-and-pages/plan.md`.
+Run Vite-based gates sequentially within one checkout so their dependency-cache writes cannot race. Physical-control acceptance is in `docs/work/3_pressable-controls/plan.md`. Accepted application checks and their bounds remain in `docs/work/1_controller-life-expansion/plan.md`; documentation and Pages acceptance is in `docs/work/2_docs-and-pages/plan.md`.
 
 - `npm run typecheck` — `tsc --noEmit`.
 - `npm run build` — typecheck, then the Vite production build into ignored `dist/`.
@@ -80,6 +80,8 @@ Run Vite-based gates sequentially within one checkout so their dependency-cache 
 - `npm run check:social-approaches` — all five immutable supported approaches and 166 added footprints, with actual counter/roof/support controls; the seven legacy routes retain their separate coverage.
 - `npm run check:social-contact` — actual emitted hand, lip, prop and obstacle geometry plus a 240-second model timeline; garden order covers all completed cycles, while detailed gardening geometry samples the first completed cycle of each pair. Both executed old-order controls must fail.
 - `npm run check:buttons` — physical X/Y/A/B placement, stroke/counter geometry and face contact, with swapped, floating, inverted and missing-mark negative controls.
+- `npm run check:physical-controls` — six button groups, press/tap/rebound/reset state, cap/mark contact and surroundings; 400 joystick tilt poses across five lift heights, with actual socket/scenery triangles and route/resident bounds. Concealed button stems intentionally enter their own housing; visible tops stay above their bezel. Sampled tilt coverage is not a continuous sweep certificate.
+- `npm run check:physical-input` — real headless desktop pointer/keyboard controls, six buttons, joystick screen directions from three views, sticky drag arbitration, cancellation, occlusion, reduced motion and hookless production pixels; run after building. Captures and source hashes live under ignored `output/physical-input/`.
 - `npm run check:mechanism-state` — deterministic state/events across frame partitions, reversal and blocked cancellation, reduced motion and validated history restoration.
 - `node scripts/mechanism-performance.mjs --check` — synchronous CPU update/render-submission budgets over 150/600 completed frames, exact violation controls, cadence changes and missing/stale/overlapping-record rejection. Native frame intervals and paired work difference are diagnostics; this does not measure GPU completion.
 - `npm run check:mechanisms` — actual emitted full-sweep geometry for all three mechanisms, including 33 travel/support samples, eight combined endpoints, 12 activity times and intermediate-only obstruction controls.
@@ -108,7 +110,9 @@ The three reviewed screenshots in `docs/showcase/` are versioned documentation a
 
 ## Maintenance context
 
-Camera reset changes only the camera. Camera movement and deliberate opening remain available while life is paused; openings made while paused stay queued until life advances. Space opens the focused physical part and otherwise toggles life. Reduced motion starts life paused, makes opening immediate and responds to preference changes; the ordinary life toggle can resume it. Camera keys ignore editable fields and modifier shortcuts, and held movement stops when the page loses focus or visibility. Nonvisual controls and instructions remain available to screen readers.
+Camera reset changes only the camera. Camera movement and deliberate opening remain available while life is paused; openings made while paused stay queued until life advances. Space operates the focused service part or momentary button and otherwise toggles life. Reduced motion starts life paused, makes opening immediate and responds to preference changes; the ordinary life toggle can resume it. Camera keys ignore editable fields and modifier shortcuts, and held movement stops when the page loses focus or visibility. Nonvisual controls and instructions remain available to screen readers.
+
+XYAB, plus and home presses and joystick tilt are transient presentation state, with no life clock or history fields. Hold a physical button with the pointer or focused Enter/Space. Ordinary button taps have an 80 ms minimum press and 100 ms rebound; explicit cancellation and reduced-motion release reset immediately. Drag the joystick or hold arrows while its nonvisual control is focused. Tilt is bounded to 0.10 radians, with a small bearing rise and telescopic extension that keep both the shaft bottom and cap edge clear of the unchanged socket. Release recenters the stick. A click within five pixels still operates the inspection lift; a drag stays a drag even after returning to its starting point. The input module owns the complete physical pointer stream before OrbitControls. Cancellation drains capture and resets poses before suspension or mechanism commands; a moving inspection lift keeps tilt neutral so its cached neutral clearance remains valid.
 
 A pure 30 Hz social model owns choices, interactions, reciprocal reservations and prop ownership. Presentation translates copied frames into resident and prop geometry. Five supported approaches supplement the seven legacy routes; circuit pairs retain their supported stationary positions. Gardening guidance precedes preparation, watering, drain, lowering and acknowledgment. Opening reactions can wait until an interaction ends.
 
@@ -133,6 +137,7 @@ The route gate samples seven routes at intervals no greater than .025 units, che
 - `src/main.ts` and `src/style.css`: camera, render lifecycle, accessible exploration and scene presentation.
 - `src/mechanism-input.ts`: visible-surface picking, click/drag arbitration and keyboard access.
 - `src/scene/controller.ts` and `button-markings.ts`: shell, physical controls, coral rail, PCB and source-drawn X/Y/A/B.
+- `src/scene/physical-controls.ts`: bounded temporary button presses, short tap visibility, rebound and joystick direction; no persistence or simulation state.
 - `src/scene/mechanism-state.ts`, `mechanism-clearance.ts` and `mechanism-geometry.ts`: motion authority, continuous clearance, occupancy and batched mechanism geometry.
 - `src/scene/community.ts`: café, courtyard, homes, ramp, routes and actual-geometry clearance.
 - `src/scene/social-state.ts`, `social-types.ts` and `social-events.ts`: deterministic model, contracts, replay history and direct opening delivery independent of the diagnostic event ring.

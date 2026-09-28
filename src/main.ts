@@ -1,7 +1,7 @@
 import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { createController, controllerMechanisms } from './scene/controller';
+import { createController, controllerMechanisms, controllerPhysicalControls } from './scene/controller';
 import { createCommunity } from './scene/community';
 import { configureEnvironment } from './scene/environment';
 import { createMechanismState } from './scene/mechanism-state';
@@ -157,10 +157,11 @@ function startScene() {
   }
   function commandMechanism(id: string, source: 'pointer' | 'keyboard' | 'diagnostic') {
     if (disposed || suspended || contextLost || document.hidden || !controls.enabled) return;
+    mechanismInput?.prepareCommand();
     mechanisms.command(id, source, reducedMotion, worldTime);
     saveWorldHistory();
   }
-  mechanismInput = createMechanismInput({ canvas, camera, scene, assemblies,
+  mechanismInput = createMechanismInput({ canvas, camera, scene, assemblies, physical: controllerPhysicalControls(controller), reducedMotion: () => reducedMotion,
     enabled: () => !disposed && !suspended && !contextLost && !document.hidden && controls.enabled,
     cameraKeysHeld: () => heldKeys.size > 0,
     toggle: commandMechanism, snapshots: mechanisms.snapshot });
@@ -283,7 +284,7 @@ function startScene() {
     // Completions enter the social journal before its fixed ticks reach the same life time.
     community.update(worldTime);
     controls.update();
-    mechanismInput?.update(mechanisms.snapshot().some(state => state.progress !== state.target));
+    mechanismInput?.update(mechanisms.snapshot().some(state => state.progress !== state.target), delta);
     if (historyDirty) saveWorldHistory();
     renderer.render(scene, camera);
     if (import.meta.env.DEV) frameWork!.complete(workTicket!);
@@ -380,6 +381,12 @@ function startScene() {
       freezeMechanisms: (frozen: boolean) => { mechanismsFrozen = frozen; previousFrame = undefined; },
       clocks: () => ({ life: worldTime, mechanism: mechanisms.time() }),
       mechanismInput: () => mechanismInput?.diagnostics(),
+      physicalGeometry: () => {
+        const buttons = controllerPhysicalControls(controller).buttons.map(button => ({ id: button.id, min: new THREE.Box3().setFromObject(button.root).min.toArray(), max: new THREE.Box3().setFromObject(button.root).max.toArray() }));
+        const cap = new THREE.Box3(); for (const mesh of assemblies.find(assembly => assembly.id === 'joystick')!.pickMeshes) cap.union(new THREE.Box3().setFromObject(mesh));
+        const capMesh = assemblies.find(assembly => assembly.id === 'joystick')!.pickMeshes[0];
+        return { buttons, capCenter: cap.getCenter(new THREE.Vector3()).toArray(), capAxis: new THREE.Vector3(0, 1, 0).transformDirection(capMesh.matrixWorld).toArray() };
+      },
       view: (position: [number, number, number], target: [number, number, number]) => {
         placeCamera(new THREE.Vector3(...position), new THREE.Vector3(...target));
         markExploring();

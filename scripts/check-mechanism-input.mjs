@@ -208,7 +208,8 @@ async function settled(page, id, target) {
   assert.ok(Math.abs(item.progress - target) < 1e-7, id + ': mechanism did not settle after its authored frame exposure.');
 }
 async function focusButton(page, id) {
-  for (let attempt = 0; attempt < fixtures.mechanisms.length + 5; attempt++) {
+  // Six momentary controls join the three service parts in the real Tab order.
+  for (let attempt = 0; attempt < fixtures.mechanisms.length + 6 + 5; attempt++) {
     if (await page.evaluate(id => document.activeElement?.getAttribute('data-mechanism-id') === id, id)) return;
     await page.keyboard.press('Tab');
   }
