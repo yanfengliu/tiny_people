@@ -1,6 +1,6 @@
 # Devlog Summary
 
-- 2026-09-28: **Visitor documentation and Pages publication prepared** — the README now leads with the public miniature, screenshots and concise controls; maintenance details live in AGENTS. A pinned-action workflow builds the existing app for the GitHub Pages project path. Local build and project-path browser checks passed; live publication and final review remain pending.
+- 2026-09-28: **The miniature is live on GitHub Pages** — the README now leads with the public link, screenshots and controls; agent procedures live in AGENTS. The pinned deployment workflow and live desktop controls pass verification. Independent review finds no material issue; the second reviewer is unavailable because of its usage limit.
 
 - 2026-09-19: **Controller community accepted and cleanup resolved** — independent review accepts the exact integrated source, cadence-adaptive verification and retained evidence. The accepted product is published; phase eleven closes after explicit approval to stop three identified helpers, two identity-bound terminations and removal of the locked empty worktree directory. The main app server remains running; historical failures and review limits remain preserved.
 
