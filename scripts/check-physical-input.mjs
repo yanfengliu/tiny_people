@@ -143,6 +143,65 @@ try {
   }
   assert.equal((await state(page)).life.paused, keyboardBefore.life.paused); sameCamera(keyboardCamera, await camera(page)); report.checks.push('keyboard-and-semantic-isolation');
 
+  await setView(page);
+  await page.evaluate(() => {
+    window.__physicalKeyRepeats = [];
+    addEventListener('keydown', event => { if (event.repeat) window.__physicalKeyRepeats.push({ key: event.key, code: event.code, repeat: event.repeat, trusted: event.isTrusted }); }, true);
+  });
+  const xButton = page.locator('[data-physical-control="button-X"]');
+  const pressPoint = await project(page, buttons[0].point);
+  for (const key of ['Space', 'Enter']) {
+    await xButton.focus(); await page.keyboard.down(key); await observe(page, 'button-takeover-' + key + '-keyboard');
+    await page.mouse.move(pressPoint.x, pressPoint.y); await page.mouse.down();
+    await page.keyboard.down(key);
+    assert.equal(await page.evaluate(code => window.__physicalKeyRepeats.some(event => event.code === code && event.repeat && event.trusted), key), true, 'The obsolete keydown must be a trusted actual repeat.');
+    await observe(page, 'button-takeover-' + key + '-obsolete-repeat', 250);
+    assert.ok((await physical(page)).buttons.find(button => button.id === 'button-X').depression >= .074, 'Repeating old ' + key + ' must not cancel the newer held pointer press.');
+    await page.keyboard.up(key);
+    await observe(page, 'button-takeover-' + key + '-old-key-release', 250);
+    assert.ok((await physical(page)).buttons.find(button => button.id === 'button-X').depression >= .074, 'Releasing old ' + key + ' must not release the newer held pointer press.');
+    await page.mouse.up(); await observe(page, 'button-takeover-' + key + '-pointer-release', 250); neutral(await physical(page));
+  }
+  for (const [older, newer] of [['Space', 'Enter'], ['Enter', 'Space']]) {
+    await xButton.focus(); await page.keyboard.down(older); await page.keyboard.down(newer); await page.keyboard.up(older);
+    await observe(page, 'button-key-owner-' + older + '-to-' + newer, 250);
+    assert.ok((await physical(page)).buttons.find(button => button.id === 'button-X').depression >= .074, 'Releasing old ' + older + ' must not release newer held ' + newer + '.');
+    await page.keyboard.up(newer); await observe(page, 'button-key-owner-' + newer + '-release', 250); neutral(await physical(page));
+  }
+  report.checks.push('button-keyboard-pointer-ownership');
+
+  async function tabTo(selector) {
+    await page.locator('canvas').focus();
+    const limit = await page.locator('button.sr-only').count() + 1;
+    for (let i = 0; i < limit; i++) { await page.keyboard.press('Tab'); if (await page.locator(selector).evaluate(element => element === document.activeElement)) return; }
+    assert.fail('Real Tab navigation did not reach ' + selector);
+  }
+  await setView(page, { position: [-8, 6, 6], target: [-2.9, 1, -1] });
+  const railPoint = await project(page, [-3.10, 1.1, -2]);
+  for (const selector of ['[data-mechanism-id="joystick"]', '[data-physical-control="button-X"]']) {
+    await tabTo(selector);
+    const before = await state(page), beforeCamera = await camera(page);
+    await page.mouse.move(railPoint.x, railPoint.y); await page.mouse.down(); await page.mouse.move(railPoint.x + 2, railPoint.y + 1); await page.mouse.up();
+    await observe(page, 'focused-control-to-rail-click', 1800);
+    const after = await state(page);
+    assert.equal(after.mechanisms.find(item => item.id === 'rail').target, 1 - before.mechanisms.find(item => item.id === 'rail').target, 'Canvas focus transfer must preserve the new rail click.');
+    sameCamera(beforeCamera, await camera(page));
+    // Close through the same real rail target before repeating the closed-pose fixture.
+    await page.locator('[data-mechanism-id="rail"]').focus(); await page.keyboard.press('Enter'); await observe(page, 'focus-transfer-rail-close', 1800);
+  }
+  await setView(page); await tabTo('[data-physical-control="button-X"]'); await page.keyboard.down('Enter');
+  const focusCamera = await camera(page);
+  await page.mouse.move(1250, 800); await page.mouse.down(); await page.mouse.move(1320, 760, { steps: 5 }); await page.mouse.up(); await page.keyboard.up('Enter'); await observe(page, 'focused-button-to-camera-drag', 250);
+  neutral(await physical(page));
+  assert.ok(new THREE.Vector3(...focusCamera.position).distanceTo(new THREE.Vector3(...(await camera(page)).position)) > .01, 'Canvas focus transfer must preserve a new camera drag.');
+  await setView(page); await tabTo('[data-mechanism-id="joystick"]');
+  const focusStick = await project(page, stickPoint), focusBefore = await state(page);
+  await page.mouse.move(focusStick.x, focusStick.y); await page.mouse.down(); await page.mouse.move(focusStick.x + 80, focusStick.y); await page.keyboard.press('Tab');
+  neutral(await physical(page)); assert.equal(await page.evaluate(() => window.__tinyWorld.mechanismInput().gesture), undefined, 'Explicit focus departure cancels the physical gesture.');
+  await page.mouse.up(); await observe(page, 'physical-focus-departure');
+  assert.deepEqual((await state(page)).mechanisms, focusBefore.mechanisms, 'A cancelled physical gesture cannot later click-open.');
+  report.checks.push('nonvisual-focus-to-pointer-handoff');
+
   await setView(page); stick = await project(page, stickPoint);
   const cancellations = [
     ['pointercancel', () => page.evaluate(() => { const canvas = document.querySelector('canvas'); canvas.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, bubbles: true })); })],
@@ -181,9 +240,15 @@ try {
   await setView(page); await stickButton.focus(); stick = await project(page, stickPoint);
   await page.keyboard.down('ArrowRight'); await observe(page, 'mixed-keyboard-start');
   await page.mouse.move(stick.x, stick.y); await page.mouse.down(); neutral(await physical(page));
-  await page.mouse.move(stick.x + 80, stick.y); await page.keyboard.up('ArrowRight'); assert.ok(Math.hypot(...(await physical(page)).joystick) > .9, 'Old keyboard release must not end a newer pointer gesture.');
+  await page.mouse.move(stick.x + 80, stick.y); const pointerOwnedTilt = await physical(page);
+  await page.keyboard.down('ArrowRight'); await observe(page, 'mixed-obsolete-arrow-repeat', 250);
+  assert.equal(await page.evaluate(() => window.__physicalKeyRepeats.some(event => event.code === 'ArrowRight' && event.repeat && event.trusted)), true);
+  assert.equal(await page.evaluate(() => window.__tinyWorld.mechanismInput().gesture), 'joystick', 'An obsolete focused arrow repeat must not cancel pointer ownership.');
+  assert.deepEqual((await physical(page)).joystick, pointerOwnedTilt.joystick, 'An obsolete focused arrow repeat must not become a competing tilt owner.');
+  await page.keyboard.up('ArrowRight'); assert.ok(Math.hypot(...(await physical(page)).joystick) > .9, 'Old keyboard release must not end a newer pointer gesture.');
   await page.keyboard.down('ArrowLeft'); assert.equal(await page.evaluate(() => window.__tinyWorld.mechanismInput().gesture), undefined, 'New keyboard movement cancels pointer ownership.');
   await page.mouse.up(); await page.keyboard.up('ArrowLeft'); neutral(await physical(page)); report.checks.push('mixed-input-ownership');
+  report.keyRepeats = await page.evaluate(() => window.__physicalKeyRepeats);
   await page.locator('canvas').focus(); await page.mouse.move(x.x, x.y); await page.mouse.down();
   assert.ok((await physical(page)).pressed.includes('button-X'));
   await page.evaluate(() => new Promise(resolve => {

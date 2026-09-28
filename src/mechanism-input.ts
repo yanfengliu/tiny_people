@@ -35,6 +35,7 @@ export function createMechanismInput(options: InputOptions) {
   let cancelling = false, wasMoving = false;
   let candidate: { id: string; pointerId: number; x: number; y: number; position: THREE.Vector3; quaternion: THREE.Quaternion } | undefined;
   let gesture: { id: string; pointerId: number; x: number; y: number; dragged: boolean; right: THREE.Vector3; up: THREE.Vector3 } | undefined;
+  let keyboardPress: { id: string; key: string } | undefined;
   const stickKeys = new Set<string>();
   let hover: string | undefined, focused: string | undefined, dirty = false, lastX = -1, lastY = -1;
   const lastProgress = new Map(options.snapshots().map(state => [state.id, state.progress]));
@@ -78,7 +79,7 @@ export function createMechanismInput(options: InputOptions) {
     forwardedPointers.clear();
     candidate = undefined;
     const owned = gesture; gesture = undefined;
-    stickKeys.clear(); physical.reset();
+    keyboardPress = undefined; stickKeys.clear(); physical.reset();
     if (owned && canvas.hasPointerCapture(owned.pointerId)) canvas.releasePointerCapture(owned.pointerId);
     if (!retainActive) heldPointers.clear();
     hover = undefined;
@@ -119,7 +120,7 @@ export function createMechanismInput(options: InputOptions) {
     const id = pick(event.clientX, event.clientY);
     if (id && (id === 'joystick' || physical.buttons.some(button => button.id === id))) {
       // Physical controls own the complete pointer stream; OrbitControls never sees its down.
-      candidate = undefined; stickKeys.clear(); physical.reset();
+      candidate = undefined; keyboardPress = undefined; stickKeys.clear(); physical.reset();
       gesture = { id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, dragged: false, ...screenAxes() };
       if (id !== 'joystick') physical.press(id, true);
       canvas.setPointerCapture(event.pointerId);
@@ -173,6 +174,12 @@ export function createMechanismInput(options: InputOptions) {
   canvas.addEventListener('wheel', () => { cancel(); dirty = true; }, { capture: true, passive: true, signal });
   window.addEventListener('keydown', event => {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) { cancel(); return; }
+    const target = event.target;
+    // A key held before pointer takeover can keep repeating on the focused hidden
+    // control. Its ignored repeat is not new intent to take the pointer gesture back.
+    if (event.repeat && target instanceof HTMLButtonElement &&
+      ((target.dataset.physicalControl && (event.key === ' ' || event.key === 'Enter')) ||
+       (target.dataset.mechanismId === 'joystick' && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)))) return;
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || ['w', 'a', 's', 'd', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown', '+', '=', '-', '_', 'r', ' '].includes(event.key.toLowerCase())) {
       candidate = undefined;
       if (gesture) cancel();
@@ -181,6 +188,14 @@ export function createMechanismInput(options: InputOptions) {
   window.addEventListener('blur', cancel, { signal });
   document.addEventListener('visibilitychange', cancel, { signal });
   window.addEventListener('pagehide', cancel, { signal });
+  function blurControl(event: FocusEvent) {
+    focused = undefined; dirty = true;
+    if (event.relatedTarget === canvas && forwardedPointers.size && !gesture) {
+      // A fresh canvas down records its rail/camera stream before native focus blurs
+      // this hidden control. Release the old keys without cancelling that new stream.
+      keyboardPress = undefined; stickKeys.clear(); physical.reset();
+    } else cancel();
+  }
   const buttons = assemblies.map(assembly => {
     const button = document.createElement('button');
     button.type = 'button'; button.className = 'sr-only'; button.dataset.mechanismId = assembly.id;
@@ -188,7 +203,7 @@ export function createMechanismInput(options: InputOptions) {
     button.setAttribute('aria-describedby', 'keyboard-help');
     button.setAttribute('aria-pressed', 'false');
     button.addEventListener('focus', () => { focused = assembly.id; dirty = true; }, { signal });
-    button.addEventListener('blur', () => { focused = undefined; dirty = true; }, { signal });
+    button.addEventListener('blur', blurControl, { signal });
     button.addEventListener('keydown', event => {
       if (assembly.id === 'joystick' && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
         event.preventDefault(); event.stopPropagation();
@@ -209,7 +224,6 @@ export function createMechanismInput(options: InputOptions) {
       }
       if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); }
     }, { signal });
-    button.addEventListener('blur', () => { stickKeys.clear(); physical.reset(); }, { signal });
     button.addEventListener('click', event => { event.stopPropagation(); if (options.enabled()) options.toggle(assembly.id, 'keyboard'); }, { signal });
     canvas.parentElement!.appendChild(button);
     return button;
@@ -219,18 +233,23 @@ export function createMechanismInput(options: InputOptions) {
     button.type = 'button'; button.className = 'sr-only'; button.dataset.physicalControl = part.id;
     button.textContent = part.label; button.setAttribute('aria-describedby', 'keyboard-help');
     button.addEventListener('focus', () => { focused = part.id; dirty = true; }, { signal });
-    button.addEventListener('blur', () => { focused = undefined; physical.reset(); dirty = true; }, { signal });
+    button.addEventListener('blur', blurControl, { signal });
     button.addEventListener('keydown', event => {
       if (event.key !== ' ' && event.key !== 'Enter') return;
       event.preventDefault(); event.stopPropagation();
-      if (!event.repeat && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && options.enabled()) physical.press(part.id, true);
+      if (!event.repeat && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && options.enabled()) {
+        cancel(); keyboardPress = { id: part.id, key: event.key }; physical.press(part.id, true);
+      }
     }, { signal });
     button.addEventListener('keyup', event => {
       if (event.key !== ' ' && event.key !== 'Enter') return;
-      event.preventDefault(); event.stopPropagation(); physical.press(part.id, false, options.reducedMotion());
+      event.preventDefault(); event.stopPropagation();
+      if (keyboardPress?.id === part.id && keyboardPress.key === event.key) {
+        keyboardPress = undefined; physical.press(part.id, false, options.reducedMotion());
+      }
     }, { signal });
     // Screen-reader activation has no held key; show the same bounded tap response.
-    button.addEventListener('click', event => { event.stopPropagation(); if (options.enabled()) { physical.press(part.id, true); physical.press(part.id, false, options.reducedMotion()); } }, { signal });
+    button.addEventListener('click', event => { event.stopPropagation(); if (options.enabled()) { cancel(); physical.press(part.id, true); physical.press(part.id, false, options.reducedMotion()); } }, { signal });
     canvas.parentElement!.appendChild(button); return button;
   });
   function update(moving = false, delta = 0) {
