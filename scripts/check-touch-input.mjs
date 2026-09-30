@@ -122,6 +122,75 @@ async function freshOrbit(page, touch, label) {
   assert.ok(Math.hypot(...before.position.map((n, i) => n - after.position[i])) > .1, 'A fresh single-finger scene drag must orbit after ' + label);
   assert.ok(Math.abs(distance(after) - distance(before)) < 1e-6); neutral(await physical(page));
 }
+async function captures(page, ids) {
+  return page.evaluate(ids => ids.map(id => ({ id, captured: document.querySelector('canvas').hasPointerCapture(id) })), ids);
+}
+function releasedCaptures(rows, label) {
+  assert.ok(rows.every(row => !row.captured), label + ': cancellation must release every native capture before touch cleanup. ' + JSON.stringify(rows));
+}
+async function captureCancellation(page, touch, orientation, start, action) {
+  await reset(page);
+  const cursor = await page.evaluate(() => window.__touchWitness.length);
+  const first = start === 'background' ? { x: 70, y: 80 } : await project(page, [-.25, 2.2825, .18]);
+  const direction = first.x < page.viewportSize().width / 2 ? 1 : -1;
+  const second = { x: first.x + direction * 80, y: first.y };
+  await touch.down(1, first);
+  if (start === 'joystick') assert.equal(await page.evaluate(() => window.__tinyWorld.mechanismInput().gesture), 'joystick');
+  await touch.move([[1, { x: first.x + 1, y: first.y }]]);
+  await touch.down(2, second); await touch.move([[2, { x: second.x + 1, y: second.y }]]);
+  const ids = [...touch.nativeIds.values()], beforeCamera = await camera(page), beforeState = await state(page);
+  const record = { name: orientation + '-' + start + '-' + action, before: await captures(page, ids) };
+  assert.ok(record.before.every(row => row.captured), 'Both active touches must actually have native capture before the cancellation check.');
+  assert.ok(await page.evaluate(ids => ids.every(id => window.__touchWitness.some(e => e.id === id && e.type === 'gotpointercapture' && e.trusted)), ids));
+  if (action === 'blur') await page.evaluate(() => dispatchEvent(new Event('blur')));
+  if (action === 'disabled') await page.evaluate(() => window.__tinyWorld.setInputEnabled(false));
+  if (action === 'third-finger') { await touch.down(3, { x: 300, y: 100 }); ids.push(touch.nativeIds.get(3)); }
+  record.immediatelyAfter = await captures(page, ids);
+  record.witness = await page.evaluate(start => window.__touchWitness.slice(start), cursor);
+  (report.captureCancellation ??= []).push(record);
+  // Assert before any native touch up/cancel can hide retained capture.
+  releasedCaptures(record.immediatelyAfter, record.name);
+  async function inert(label) {
+    await observe(page, label); sameView(beforeCamera, await camera(page)); neutral(await physical(page)); assert.deepEqual(await state(page), beforeState);
+    releasedCaptures(await captures(page, [...touch.nativeIds.values()]), label);
+  }
+  await touch.move([[1, { x: first.x + 12, y: first.y }], [2, { x: second.x + direction * 15, y: second.y }]]);
+  await inert(record.name + '-old-contacts-move');
+  if (action === 'third-finger') {
+    // Browser-generated capture loss must not forget the still-held cancelled IDs.
+    await touch.down(4, { x: 320, y: 130 });
+    await touch.move([[1, { x: first.x + 20, y: first.y }], [4, { x: 330, y: 130 }]]);
+    await inert(record.name + '-additional-contact');
+    await touch.up(4); await touch.up(2); await touch.up(3);
+    // Even after all but one original contact lift, adding another cannot restart it.
+    await touch.down(5, second); await touch.move([[1, { x: first.x + 30, y: first.y }], [5, { x: second.x + direction * 20, y: second.y }]]);
+    await inert(record.name + '-remaining-contact'); await touch.up(5); await touch.up(1);
+  } else { await touch.up(1); await touch.up(2); }
+  await page.evaluate(() => window.__tinyWorld.setInputEnabled(true));
+  await freshOrbit(page, touch, record.name + '-all-lifted-recovery'); report.checks.push(record.name + '-capture-drained');
+}
+async function mixedQuarantine(page, touch, orientation) {
+  await reset(page);
+  await page.evaluate(() => {
+    window.__mixedMouseId = undefined;
+    addEventListener('pointerdown', event => { if (event.pointerType === 'mouse' && event.isTrusted) window.__mixedMouseId = event.pointerId; }, { capture: true, once: true });
+  });
+  await page.mouse.move(70, 80); await page.mouse.down(); await page.mouse.move(71, 80);
+  const mouseId = await page.evaluate(() => window.__mixedMouseId);
+  assert.equal(typeof mouseId, 'number'); assert.equal((await captures(page, [mouseId]))[0].captured, true);
+  const before = await camera(page), beforeState = await state(page);
+  await touch.down(1, { x: 150, y: 80 });
+  const record = { name: orientation + '-mixed-quarantine', immediatelyAfter: await captures(page, [mouseId, ...touch.nativeIds.values()]) };
+  (report.captureCancellation ??= []).push(record); releasedCaptures(record.immediatelyAfter, record.name);
+  await page.mouse.move(90, 80); await touch.move([[1, { x: 170, y: 80 }]]);
+  await touch.down(2, { x: 240, y: 100 }); await touch.move([[2, { x: 250, y: 100 }]]);
+  sameView(before, await camera(page)); releasedCaptures(await captures(page, [mouseId, ...touch.nativeIds.values()]), record.name);
+  await page.mouse.up(); await touch.up(2);
+  await touch.down(3, { x: 230, y: 80 }); await touch.move([[1, { x: 140, y: 80 }], [3, { x: 250, y: 80 }]]);
+  await observe(page, record.name + '-remaining-touch'); sameView(before, await camera(page)); neutral(await physical(page)); assert.deepEqual(await state(page), beforeState);
+  releasedCaptures(await captures(page, [...touch.nativeIds.values()]), record.name);
+  await touch.up(1); await touch.up(3); await freshOrbit(page, touch, record.name + '-all-lifted-recovery'); report.checks.push(record.name);
+}
 const oldCancellation = process.argv.includes('--old-cancellation');
 try {
   await mkdir(output, { recursive: true }); report.source = await digests('src'); report.production = await digests('dist');
@@ -208,6 +277,8 @@ try {
       assert.ok(Math.abs(distance(await camera(page)) - expected) < 1e-6, 'Native pinch must clamp at the existing camera limit ' + expected);
     }
     report.checks.push(orientation + '-camera-limits');
+    for (const start of ['background', 'joystick']) for (const action of ['blur', 'disabled', 'third-finger']) await captureCancellation(page, touch, orientation, start, action);
+    await mixedQuarantine(page, touch, orientation);
     for (const action of ['browser-touchcancel', 'lost-capture', 'blur-event', 'disabled', 'third-finger']) {
       await reset(page); const beforeState = await state(page);
       await touch.down(1, { x: 70, y: 80 });

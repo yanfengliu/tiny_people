@@ -77,12 +77,14 @@ export function createMechanismInput(options: InputOptions) {
   }
   function cancel(event?: Event, retainActive = false) {
     if (cancelling) return;
-    const tracked = [...forwardedPointers];
+    const tracked = [...forwardedPointers], captured = new Set([...heldPointers, ...tracked]);
     forwardedPointers.clear();
     candidate = undefined;
-    const owned = gesture; gesture = undefined;
+    gesture = undefined;
     keyboardPress = undefined; stickKeys.clear(); physical.reset();
-    if (owned && canvas.hasPointerCapture(owned.pointerId)) canvas.releasePointerCapture(owned.pointerId);
+    // OrbitControls releases only its final pointer; implicit touch capture can also
+    // belong to an unforwarded extra contact. Drain every capture we observed.
+    for (const pointerId of captured) if (canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
     if (!retainActive) { heldPointers.clear(); touchPointers.clear(); }
     hover = undefined;
     lastX = lastY = -1;
@@ -120,7 +122,8 @@ export function createMechanismInput(options: InputOptions) {
     heldPointers.add(event.pointerId);
     if (event.pointerType === 'touch') touchPointers.set(event.pointerId, event);
     // Two actual touches belong to the camera, even if the first held a physical part.
-    if (heldPointers.size === 2 && touchPointers.size === 2 && options.enabled()) {
+    // Cancelled contacts have no owner and stay inert until their actual releases.
+    if (heldPointers.size === 2 && touchPointers.size === 2 && (gesture || forwardedPointers.size > 0) && options.enabled()) {
       candidate = undefined; gesture = undefined;
       keyboardPress = undefined; stickKeys.clear(); physical.reset();
       const first = [...touchPointers.values()].find(touch => touch.pointerId !== event.pointerId)!;
@@ -194,7 +197,9 @@ export function createMechanismInput(options: InputOptions) {
   canvas.addEventListener('lostpointercapture', event => {
     // A normal up has already removed this ID. Unexpected capture loss must also end OrbitControls.
     if (forwardedPointers.has(event.pointerId) || gesture?.pointerId === event.pointerId) cancel();
-    candidate = undefined; heldPointers.delete(event.pointerId); touchPointers.delete(event.pointerId);
+    // Deliberate capture release is not a native pointerup. Retain cancelled contacts
+    // so another down cannot restart a mixed/extra-finger stream before they lift.
+    candidate = undefined;
   }, { signal });
   canvas.addEventListener('pointerleave', () => { hover = undefined; lastX = lastY = -1; dirty = true; }, { signal });
   canvas.addEventListener('wheel', () => { cancel(); dirty = true; }, { capture: true, passive: true, signal });

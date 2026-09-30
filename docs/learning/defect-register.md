@@ -1,5 +1,13 @@
 # Defect register
 
+## Cancellation left native touch capture active (F0)
+
+**Review finding:** Two-touch cancellation claimed to drain capture, but `hasPointerCapture` still reported the first native ID after blur or disabled input. A third touch also retained its implicit capture. The probe did not establish a visible camera failure from the retained capture alone.
+
+**Investigation and cause:** OrbitControls released capture only for the last ID removed from its pointer list. Cancelling forwarded IDs in insertion order therefore left the first ID captured. The prior touch gate called native `touchCancel` before checking recovery, masking the retained browser capture. Releasing all captures also requires keeping still-held cancelled contacts tracked: a generated `lostpointercapture` is not a finger lift.
+
+**Correction and check:** Cancellation explicitly releases every held/forwarded capture, and expected capture loss preserves cancelled contacts until native release. Two-touch takeover requires an existing physical or forwarded owner, so adding a finger cannot revive a cancelled contact. The touch gate checks capture immediately before native cleanup for background and joystick starts, blur, disabled input and a third native finger in both orientations. It also moves cancelled contacts, adds contacts while old ones remain, reduces to one surviving cancelled contact, checks mixed mouse/touch input and recovers after actual lifts. Restoring `70b8b7b2c9de6f682f69b31067cf46a533b190bd:src/mechanism-input.ts` fails the new capture assertion while the corrected runtime passes. [Gate proof](gate-proofs.md#native-touch-capture-cancellation-f0-2026-09-29) records the bounds and source/report hashes.
+
 ## Two-finger touch zoom was cancelled before reaching the camera
 
 **Reported symptom:** The user could not zoom in or out with two fingers on mobile.
