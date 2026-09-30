@@ -1,6 +1,6 @@
 # Two-finger touch zoom
 
-Status: active
+Status: complete
 Owner: Codex integration owner
 Created: 2026-09-29
 Updated: 2026-09-29
@@ -24,13 +24,13 @@ Inspect the existing input diagnostic and OrbitControls path. Reproduce the fail
 - [x] Finger release order, cancellation and a subsequent single-finger or desktop gesture recover correctly.
 - [x] The original failure is reproduced, focused mobile checks and affected desktop gates pass, and native portrait/landscape captures are inspected.
 - [x] The defect register, concise README controls, accessibility help and local policy reflect the requested touch support.
-- [ ] Independent review clears the exact integrated change; main is pushed, Pages is verified and owned resources are cleaned.
+- [x] Independent review clears the exact integrated change; main is pushed, Pages is verified and owned resources are cleaned.
 
 ## Implementation steps
 
 - [x] Allocate work, inspect state and identify the second-pointer cancellation path.
 - [x] Reproduce, implement and verify the touch handoff.
-- [ ] Independently review, integrate, publish and close out.
+- [x] Independently review, integrate, publish and close out.
 
 ## Outcome
 
@@ -40,4 +40,17 @@ All 21 required gates passed sequentially on unchanged final source. The touch g
 
 Independent [review 2](reviews/2_integration.md) accepted the final repair with F0 and F1 closed and no new findings. [Review 0](reviews/0_integration.md) and [review 1](reviews/1_integration.md) preserve the findings and their dispositions. README controls and accessibility help describe pinch/spread; agent detail remains in AGENTS. The user's touch-support direction is retained in `docs/policies/local-rules.md`.
 
-Main integration, Pages deployment, live verification and final resource cleanup are pending. The project-path production build passes.
+The reviewed source was fast-forwarded to main and pushed. [Pages run 36653976253](https://github.com/yanfengliu/tiny_people/actions/runs/36653976253) built and deployed `ec48ca15b06b10d7f5806d7c236e9773b1734099` successfully. GitHub Pages uses the workflow build source. The [public app](https://yanfengliu.github.io/tiny_people/) returned HTTP 200 and passed trusted native spread/pinch checks in portrait and landscape, with page scale 1 and no browser/network errors. Actual dark scene pixels grew from 90,281 to 194,289 then shrank to 48,865 in portrait; landscape counts were 26,484, 59,334 and 14,085. Both views were inspected before, after spread and after pinch at native resolution, confirming visible enlargement/reduction and coherent rendering.
+
+Live JavaScript `index-BdU3f0BK.js` SHA-256 is `2230c066d560dcfb5c0e9c9c4c995a7f6024fd049cf6249f860ea58d5799c968`; CSS `index-wGS96wpO.css` SHA-256 is `41e8765bfc924fd30bf1c6c091bdbabd05c636315e5e8367a0b5dfce01e7149b`. Both match the tested project-path build. Live report SHA-256: `672fb8af4a0b7629b1b00d970e5e14a6f1d2e0401f2f245f9854acbd35a47514`.
+
+| Inspected live capture | SHA-256 |
+| --- | --- |
+| Portrait before | `09fff5624faf99cde48425a66b03b0a82f08241e8fc8ea3eddbc605b547d7c6a` |
+| Portrait spread | `c1f9c35d28b9814be483ef9c2710570b83f06b5a32dafe4d00c8897bb8503b32` |
+| Portrait pinch | `df7ff2eea7afb5f06bcfece2bbcbe633f926f080c2cb36598380c2c260b87c67` |
+| Landscape before | `56353dc7908525520952d75f12893df4dc24e2ac6fc2e26aa5b53f6ff06b4fbe` |
+| Landscape spread | `88dd428c0ace63c1fc4104cf17436c0142a59ceb7efc9742c97bfd6c52433603` |
+| Landscape pinch | `f7dac5d3cfeb05d4059e0c76c283b0ef35fe643218d2f8f1f345f1a362d3519e` |
+
+Owned browsers and servers are stopped, and both task worktrees are archived. Ignored verification evidence is retained only through the final documentation push and asset check, then removed. No required check or material finding remains open; the physical-device/other-browser bound above still applies.
