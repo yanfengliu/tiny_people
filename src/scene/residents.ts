@@ -9,6 +9,8 @@ export type ResidentPose = {
   yaw: number;
   walkPhase: number;
   walking: boolean;
+  /** A smooth start/stop envelope. Omission retains the original full gait. */
+  walkAmount?: number;
   seated: boolean;
   activity: 'walk' | 'talk' | 'water' | 'serve' | 'relax';
   time: number;
@@ -21,6 +23,8 @@ export type ResidentPose = {
 };
 
 export type ResidentPoint = [number, number, number];
+/** Optional scene-specific tessellation; omitted fields preserve the controller meshes. */
+export type ResidentMeshDetail = { skin?: [number, number]; hair?: [number, number]; clothes?: number };
 export type ResidentArm = { elbow: ResidentPoint; hand: ResidentPoint };
 export type SharedResidentProp = {
   id: string; kind: 'book' | 'cup' | 'water'; owner: number;
@@ -83,7 +87,7 @@ function contoured(geometry: THREE.BufferGeometry, shape: (point: THREE.Vector3)
 }
 
 /** Material-specific batches share anatomy and props; supplied poses own animation. */
-export function createResidents(count: number) {
+export function createResidents(count: number, detail: ResidentMeshDetail = {}) {
   if (!Number.isInteger(count) || count < 1) throw new Error('Resident capacity must be a positive integer.');
   const group = new THREE.Group();
   group.name = 'tiny-residents';
@@ -115,7 +119,7 @@ export function createResidents(count: number) {
     { y: .15, x: .48, z: .50 }, { y: .25, x: .50, z: .49 },
     { y: .34, x: .49, z: .46 }, { y: .40, x: .43, z: .40 },
     { y: .46, x: .32, z: .32 }, { y: .5, x: .24, z: .28 },
-  ], true, 24), point => {
+  ], true, detail.clothes ?? 24), point => {
     const x = point.x / .5, face = Math.min(1, Math.abs(point.z) / .35);
     const fade = Math.max(0, 1 - Math.abs(x) ** 3) * face;
     // Two oblique compression folds cross the lower back; the front gathers above the hem.
@@ -126,7 +130,7 @@ export function createResidents(count: number) {
     if (Math.abs(point.y) < .49) point.z += Math.sign(point.z) * (.22 * fold + (point.z < 0 ? .055 * upper : 0));
     return .965 + fold * .14 - upper * .025;
   }), 2);
-  const skinGeometry = new THREE.SphereGeometry(1, 16, 12);
+  const skinGeometry = new THREE.SphereGeometry(1, ...(detail.skin ?? [16, 12] as [number, number]));
   const skinPositions = skinGeometry.attributes.position;
   for (let i = 0; i < skinPositions.count; i++) {
     const y = skinPositions.getY(i);
@@ -163,7 +167,8 @@ export function createResidents(count: number) {
     point.z *= 1 - fold * .025;
     return .98 + fold * .015;
   }), 16);
-  const hairGeometry = new THREE.SphereGeometry(1, 24, 14, 0, Math.PI * 2, 0, Math.PI * .65);
+  const [hairWidth, hairHeight] = detail.hair ?? [24, 14];
+  const hairGeometry = new THREE.SphereGeometry(1, hairWidth, hairHeight, 0, Math.PI * 2, 0, Math.PI * .65);
   contoured(hairGeometry, point => {
     const y = point.y, z = point.z, angle = Math.atan2(z, point.x), sides = 1 - y * y;
     point.y += Math.max(0, z) * Math.max(0, .6 - y) * .65;
@@ -249,7 +254,8 @@ export function createResidents(count: number) {
       const pants = trousers[(variant * 3) % trousers.length];
       const complexion = skin[(variant * 5) % skin.length];
       const hairColor = hair[(variant * 3) % hair.length];
-      const stride = pose.walking && !pose.seated ? Math.sin(pose.walkPhase) : 0;
+      const walkAmount = pose.walkAmount ?? 1;
+      const stride = pose.walking && !pose.seated ? Math.sin(pose.walkPhase) * walkAmount : 0;
       const active = pose.walking && !pose.seated;
       residentRotation.setFromAxisAngle(up, pose.yaw);
       // World dy/dx,dy/dz become gradients along this person's sideways/forward axes.
@@ -261,7 +267,7 @@ export function createResidents(count: number) {
       // Adult standing proportions; the seated pelvis still lands exactly on the authored bench.
       const hip = metrics.hip;
       const lean = pose.lean ?? (pose.seated ? .006 : 0);
-      const sway = active ? Math.sin(pose.walkPhase) * .002 : 0;
+      const sway = active ? Math.sin(pose.walkPhase) * .002 * walkAmount : 0;
       part(clothes, [0, hip, 0], [.069 * breadth, .034, .043], pants);
       part(clothes, [sway, hip + .058, lean], [.080 * breadth, .106, .044], shirt);
       // Keep the hip joints within the trousers; the full thighs carry the outer silhouette.
@@ -273,7 +279,7 @@ export function createResidents(count: number) {
 
       for (const side of [-1, 1]) {
         const step = stride * side * .040;
-        const lift = active ? Math.max(0, Math.cos(pose.walkPhase) * side) * .021 : 0;
+        const lift = active ? Math.max(0, Math.cos(pose.walkPhase) * side) * .021 * walkAmount : 0;
         const footX = side * .020, footZ = pose.seated ? .104 : step + .008;
         const floorAtFoot = slopeX * footX + slopeZ * footZ;
         const foot: Point = [footX + groundNormal.x * .007, floorAtFoot + groundNormal.y * .007 + lift, footZ + groundNormal.z * .007];

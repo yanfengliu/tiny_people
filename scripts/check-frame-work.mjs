@@ -1,5 +1,5 @@
 // harness: Execute the actual frame-work.ts recorder and exact main.ts animate body after Node type stripping, with DEV=true and surrounding scene work stubbed only to test the measurement boundary.
-// Bounds: 2055 completions exercise the default 2048 ring; invalid/stale/duplicate tickets, copies, four early returns and renderer throw. One 45ms CPU burst per actual/control execution tests completion placement; no browser, GPU-duration or display-cadence claim.
+// Bounds: 2055 completions exercise the default 2048 ring; invalid/stale/duplicate tickets, copies, both scene pipelines, four early returns and renderer throw per scene. A 45ms CPU burst per actual/control execution in each scene tests completion placement; no browser, GPU-duration or display-cadence claim.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -12,7 +12,7 @@ const sourcePaths = ['src/main.ts', 'src/frame-work.ts', 'scripts/check-frame-wo
 const output = 'output/phase10/frame-work', runDirectory = `${output}/runs/${new Date().toISOString().replace(/[:.]/g, '-')}`;
 const sha = bytes => createHash('sha256').update(bytes).digest('hex'), copy = value => structuredClone(value);
 const digests = async () => Object.fromEntries(await Promise.all(sourcePaths.map(async path => [path, sha(await readFile(path))])));
-const report = { harness: 'node scripts/check-frame-work.mjs', runDirectory, pass: false, checks: [], controls: [], bounds: { defaultCapacity: 2048, completedFrames: 2055, busyTargetMs: 45, busyExecutions: 2 }, browsersLaunched: 0, serversLaunched: 0 };
+const report = { harness: 'node scripts/check-frame-work.mjs', runDirectory, pass: false, checks: [], controls: [], scenePipelines: [], bounds: { defaultCapacity: 2048, completedFrames: 2055, activeScenes: ['controller', 'printer'], busyTargetMs: 45, busyExecutions: 4 }, browsersLaunched: 0, serversLaunched: 0 };
 await mkdir(runDirectory, { recursive: true });
 function uniqueIndex(source, token) { const index = source.indexOf(token); assert.ok(index >= 0 && source.indexOf(token, index + token.length) === -1, 'Expected exactly one source boundary: ' + token); return index; }
 function replaceOnce(source, before, after) { const index = uniqueIndex(source, before); return source.slice(0, index) + after + source.slice(index + before.length); }
@@ -83,9 +83,9 @@ try {
 
   function integration(executable, options = {}) {
     let fakeClock = 100, timerReads = 0;
-    const calls = [], busy = [], useRealClock = options.realClock ?? false;
+    const calls = [], trace = [], busy = [], useRealClock = options.realClock ?? false;
     const actualRecorder = factory(() => { timerReads++; return useRealClock ? performance.now() : fakeClock; }, useRealClock ? performance.timeOrigin : 0);
-    function work(name) { calls.push(name); if (!useRealClock) fakeClock += 1; }
+    function work(name, ...args) { calls.push(name); trace.push({ name, args }); if (!useRealClock) fakeClock += 1; }
     const renderer = { fail: false, render() {
       work('renderer.render');
       if (renderer.fail) throw new Error('intentional renderer failure');
@@ -95,49 +95,68 @@ try {
         const completed = performance.now(); busy.push({ startedAtMs: started, completedAtMs: completed, elapsedMs: completed - started, iterations, checksum });
       }
     } };
-    const context = createContext({ THREE, frameWork: actualRecorder, disposed: false, suspended: false, contextLost: false, document: { hidden: false }, previousFrame: undefined, worldTime: 0, testFrozen: false, paused: () => false, translateCamera: () => work('translateCamera'), socialOpenings: { observe: () => work('socialOpenings.observe') }, mechanisms: { snapshot: () => [{ progress: 0, target: 1 }], advance: () => work('mechanisms.advance') }, mechanismsFrozen: false, reducedMotion: false, community: { update: () => work('community.update') }, controls: { update: () => work('controls.update') }, mechanismInput: { update: () => work('mechanismInput.update') }, historyDirty: true, saveWorldHistory: () => work('saveWorldHistory'), renderer, scene: {}, camera: {} });
+    const activeScene = options.activeScene ?? 'controller';
+    const context = createContext({ THREE, frameWork: actualRecorder, activeScene, disposed: false, suspended: false, contextLost: false, document: { hidden: false }, previousFrame: undefined, worldTime: 7, printerTime: 11, testFrozen: options.testFrozen ?? false, paused: () => options.paused ?? false,
+      translateCamera: delta => work('translateCamera', delta), socialOpenings: { observe: () => work('socialOpenings.observe') }, mechanisms: { snapshot: () => [{ progress: 0, target: 1 }], advance: (...args) => work('mechanisms.advance', ...args) },
+      printerMechanisms: { advance: (...args) => work('printerMechanisms.advance', ...args) }, mechanismsFrozen: options.mechanismsFrozen ?? false, reducedMotion: false, community: { update: time => work('community.update', time) }, printer: { update: time => work('printer.update', time) }, printerLife: { update: time => work('printerLife.update', time) },
+      controls: { update: () => work('controls.update') }, mechanismInput: activeScene === 'controller' ? { update: (...args) => work('mechanismInput.update', ...args) } : undefined, printerInput: activeScene === 'printer' ? { update: () => work('printerInput.update') } : undefined,
+      historyDirty: true, saveWorldHistory: () => work('saveWorldHistory'), renderer, scene: {}, camera: {} });
     runInContext(executable, context, { timeout: 1000 });
-    return { context, calls, busy, renderer, snapshot: () => copy(actualRecorder.snapshot()), reads: () => timerReads };
+    return { context, calls, trace, busy, renderer, snapshot: () => copy(actualRecorder.snapshot()), reads: () => timerReads };
   }
-  const pipeline = ['translateCamera', 'socialOpenings.observe', 'mechanisms.advance', 'community.update', 'controls.update', 'mechanismInput.update', 'saveWorldHistory', 'renderer.render'];
-  const regular = integration(animate.actualExecutable), native = 10000.123456789;
-  regular.context.animate(native);
-  assert.deepEqual(regular.calls, pipeline); assert.equal(regular.reads(), 2);
-  let frames = regular.snapshot().frames; assert.equal(frames.length, 1); assert.equal(frames[0].sequence, 1); assert.equal(frames[0].nativeTimestamp, native); assert.equal(frames[0].workMs, pipeline.length);
-  regular.context.animate(native + 1000 / 120); frames = regular.snapshot().frames; assert.equal(frames.length, 2); assert.equal(frames[1].sequence, 2); assert.equal(regular.reads(), 4);
-  report.completed = regular.snapshot();
-  report.checks.push('exact animate body executes whole stubbed pipeline and appends exactly one real completed record per successful call');
-  report.earlyReturns = [];
-  for (const guard of ['disposed', 'suspended', 'contextLost', 'hidden']) {
-    const env = integration(animate.actualExecutable);
-    if (guard === 'hidden') env.context.document.hidden = true; else env.context[guard] = true;
-    env.context.animate(native); assert.equal(env.snapshot().frames.length, 0); assert.equal(env.reads(), 0); assert.deepEqual(env.calls, []);
-    if (guard === 'hidden') env.context.document.hidden = false; else env.context[guard] = false;
-    env.context.animate(native); assert.equal(env.snapshot().frames[0].sequence, 1);
-    report.earlyReturns.push({ guard, workStartedBeforeReturn: false, completedBeforeReturn: 0, nextSuccessfulSequence: 1 });
-  }
-  const failed = integration(animate.actualExecutable); failed.renderer.fail = true;
-  assert.throws(() => failed.context.animate(native), /intentional renderer failure/); assert.equal(failed.snapshot().frames.length, 0); assert.equal(failed.reads(), 1);
-  failed.renderer.fail = false; failed.context.animate(native + 1000 / 60);
-  assert.equal(failed.snapshot().frames.length, 1); assert.equal(failed.snapshot().frames[0].sequence, 2);
-  report.rendererThrow = { completedOnThrow: 0, timerReadsOnThrow: 1, nextSuccessful: failed.snapshot().frames[0] };
-  report.checks.push('all four early returns start no ticket; renderer throw leaves no completed record and next successful frame records once');
-
+  const pipelines = {
+    controller: ['translateCamera', 'socialOpenings.observe', 'mechanisms.advance', 'community.update', 'controls.update', 'mechanismInput.update', 'saveWorldHistory', 'renderer.render'],
+    printer: ['translateCamera', 'printerMechanisms.advance', 'printer.update', 'printerLife.update', 'controls.update', 'printerInput.update', 'saveWorldHistory', 'renderer.render'],
+  };
+  const native = 10000.123456789;
+  report.earlyReturns = []; report.rendererThrows = []; report.busyMeasurements = [];
   function includesBusyWork(frame, work) {
     assert.ok(frame.startedAtMs <= work.startedAtMs && frame.completedAtMs >= work.completedAtMs, 'Completed frame must enclose the actual synchronous CPU work endpoints.');
     assert.ok(frame.workMs >= work.elapsedMs, 'The actual CPU burst must appear in completed work duration.');
     assert.ok(work.elapsedMs >= report.bounds.busyTargetMs && work.iterations > 0);
   }
-  const measured = integration(animate.actualExecutable, { realClock: true, busy: true }); measured.context.animate(native);
-  const measuredFrame = measured.snapshot().frames[0], measuredBurst = measured.busy[0];
-  assert.equal(measured.snapshot().frames.length, 1); includesBusyWork(measuredFrame, measuredBurst);
-  report.busyMeasurement = { frame: measuredFrame, burst: measuredBurst, actualClock: 'node:perf_hooks performance.now', renderedGPUWork: false };
-  const misplaced = integration(animate.misplacedExecutable, { realClock: true, busy: true }); misplaced.context.animate(native);
-  const misplacedFrame = misplaced.snapshot().frames[0], misplacedBurst = misplaced.busy[0];
-  assert.equal(misplaced.snapshot().frames.length, 1); assert.deepEqual(misplaced.calls, pipeline, 'Mutation must still execute the same downstream work.');
-  assert.throws(() => includesBusyWork(misplacedFrame, misplacedBurst), /enclose the actual synchronous CPU work endpoints/);
-  report.controls.push({ name: 'actual complete call moved before downstream work', executedPath: `${runDirectory}/completion-before-work.js`, executedSha256: sha(animate.misplacedExecutable), rejected: true, frame: misplacedFrame, burst: misplacedBurst, reason: 'Recorded completion precedes actual CPU work endpoint.' });
-  report.checks.push('one real45ms CPU burst enclosed in completed record; executed completion-before-work mutation misses the same kind of real burst');
+  for (const activeScene of report.bounds.activeScenes) {
+    const pipeline = pipelines[activeScene], regular = integration(animate.actualExecutable, { activeScene });
+    regular.context.animate(native);
+    assert.deepEqual(regular.calls, pipeline); assert.equal(regular.reads(), 2);
+    let frames = regular.snapshot().frames; assert.equal(frames.length, 1); assert.equal(frames[0].sequence, 1); assert.equal(frames[0].nativeTimestamp, native); assert.equal(frames[0].workMs, pipeline.length);
+    regular.context.animate(native + 1000 / 120); frames = regular.snapshot().frames; assert.equal(frames.length, 2); assert.equal(frames[1].sequence, 2); assert.equal(frames[1].workMs, pipeline.length); assert.equal(regular.reads(), 4); assert.deepEqual(regular.calls, [...pipeline, ...pipeline]);
+    const delta = (native + 1000 / 120 - native) / 1000, timeKey = activeScene === 'controller' ? 'worldTime' : 'printerTime', retainedKey = activeScene === 'controller' ? 'printerTime' : 'worldTime';
+    assert.equal(regular.context[timeKey], (activeScene === 'controller' ? 7 : 11) + delta); assert.equal(regular.context[retainedKey], activeScene === 'controller' ? 11 : 7);
+    const updates = activeScene === 'controller' ? ['community.update'] : ['printer.update', 'printerLife.update'];
+    for (const name of updates) assert.equal(regular.trace.filter(entry => entry.name === name).at(-1).args[0], regular.context[timeKey]);
+    assert.deepEqual(regular.trace.filter(entry => entry.name === (activeScene === 'controller' ? 'mechanisms.advance' : 'printerMechanisms.advance')).at(-1).args, [delta, regular.context[timeKey], false]);
+    report.scenePipelines.push({ activeScene, pipeline, completed: regular.snapshot(), clocks: { worldTime: regular.context.worldTime, printerTime: regular.context.printerTime }, trace: regular.trace });
+    for (const guard of ['disposed', 'suspended', 'contextLost', 'hidden']) {
+      const env = integration(animate.actualExecutable, { activeScene });
+      if (guard === 'hidden') env.context.document.hidden = true; else env.context[guard] = true;
+      env.context.animate(native); assert.equal(env.snapshot().frames.length, 0); assert.equal(env.reads(), 0); assert.deepEqual(env.calls, []);
+      if (guard === 'hidden') env.context.document.hidden = false; else env.context[guard] = false;
+      env.context.animate(native); assert.equal(env.snapshot().frames[0].sequence, 1); assert.deepEqual(env.calls, pipeline);
+      report.earlyReturns.push({ activeScene, guard, workStartedBeforeReturn: false, completedBeforeReturn: 0, nextSuccessfulSequence: 1 });
+    }
+    for (const option of ['paused', 'testFrozen', 'mechanismsFrozen']) {
+      const env = integration(animate.actualExecutable, { activeScene, [option]: true }); env.context.animate(native); env.context.animate(native + 1000 / 120);
+      const expected = option === 'mechanismsFrozen' ? pipeline.filter(name => !name.endsWith('.advance')) : pipeline;
+      assert.deepEqual(env.calls, [...expected, ...expected]); assert.equal(env.snapshot().frames.length, 2); assert.equal(env.snapshot().frames[1].workMs, expected.length);
+      if (option !== 'mechanismsFrozen') { assert.equal(env.context.worldTime, 7); assert.equal(env.context.printerTime, 11); }
+    }
+    const failed = integration(animate.actualExecutable, { activeScene }); failed.renderer.fail = true;
+    assert.throws(() => failed.context.animate(native), /intentional renderer failure/); assert.equal(failed.snapshot().frames.length, 0); assert.equal(failed.reads(), 1); assert.deepEqual(failed.calls, pipeline);
+    failed.renderer.fail = false; failed.context.animate(native + 1000 / 60); assert.equal(failed.snapshot().frames.length, 1); assert.equal(failed.snapshot().frames[0].sequence, 2);
+    report.rendererThrows.push({ activeScene, completedOnThrow: 0, timerReadsOnThrow: 1, nextSuccessful: failed.snapshot().frames[0] });
+    const measured = integration(animate.actualExecutable, { activeScene, realClock: true, busy: true }); measured.context.animate(native);
+    const measuredFrame = measured.snapshot().frames[0], measuredBurst = measured.busy[0];
+    assert.equal(measured.snapshot().frames.length, 1); assert.deepEqual(measured.calls, pipeline); includesBusyWork(measuredFrame, measuredBurst);
+    report.busyMeasurements.push({ activeScene, frame: measuredFrame, burst: measuredBurst, actualClock: 'node:perf_hooks performance.now', renderedGPUWork: false });
+    const misplaced = integration(animate.misplacedExecutable, { activeScene, realClock: true, busy: true }); misplaced.context.animate(native);
+    const misplacedFrame = misplaced.snapshot().frames[0], misplacedBurst = misplaced.busy[0];
+    assert.equal(misplaced.snapshot().frames.length, 1); assert.deepEqual(misplaced.calls, pipeline, 'Mutation must still execute the same downstream work.');
+    assert.throws(() => includesBusyWork(misplacedFrame, misplacedBurst), /enclose the actual synchronous CPU work endpoints/);
+    report.controls.push({ activeScene, name: 'actual complete call moved before downstream work', executedPath: `${runDirectory}/completion-before-work.js`, executedSha256: sha(animate.misplacedExecutable), rejected: true, frame: misplacedFrame, burst: misplacedBurst, reason: 'Recorded completion precedes actual CPU work endpoint.' });
+  }
+  assert.deepEqual(report.scenePipelines.map(entry => entry.activeScene), report.bounds.activeScenes); assert.equal(report.earlyReturns.length, 8); assert.equal(report.rendererThrows.length, 2); assert.equal(report.busyMeasurements.length + report.controls.length, report.bounds.busyExecutions);
+  report.checks.push('exact animate body executes both active scene pipelines, retains inactive clocks, forwards active life time and completes once per successful frame', 'both scene pipelines preserve measurement during pause/freeze; all four early returns start no ticket; renderer throw records nothing and recovers', 'both scenes enclose a real45ms CPU burst; executed completion-before-work mutations miss the same real work');
   report.sourceAfter = await digests(); assert.deepEqual(report.sourceAfter, report.sourceBefore);
   report.limits = 'Surrounding community/controls/renderer functions are deliberate CPU stubs. This checks recorder semantics and exact animate measurement placement, not GPU completion, production omission or performance budgets.';
   report.pass = true;

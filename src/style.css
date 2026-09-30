@@ -5,4 +5,8 @@ body { margin: 0; overflow: hidden; }
 #scene { position: absolute; inset: 0; }
 canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+#scene-switcher { position: absolute; top: max(22px, env(safe-area-inset-top)); left: max(24px, env(safe-area-inset-left)); max-width: calc(100% - 48px); padding: 12px 38px 12px 16px; border: 1px solid #252a2926; border-radius: 9px; background: #fffdf4e8; color: #343936; font: 500 13px/1.3 'Helvetica Neue', Helvetica, Arial, sans-serif; letter-spacing: .01em; box-shadow: 0 3px 14px #252a2910; cursor: pointer; }
+#scene-switcher:hover { border-color: #cd776866; }
+#scene-switcher:focus-visible { outline: 2px solid #c75f4c; outline-offset: 3px; }
+@media (max-width: 600px) { #scene-switcher { top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); padding: 11px 30px 11px 13px; font-size: 12px; } }
 .error { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: min(440px,calc(100% - 40px)); padding: 24px; border: 1px solid #b59d90; border-radius: 16px; background: #fffaf2; font-size: 15px; line-height: 1.6; box-shadow: 0 6px 25px #343a2622; }

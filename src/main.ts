@@ -1,4 +1,3 @@
-import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createController, controllerMechanisms, controllerPhysicalControls } from './scene/controller';
@@ -9,9 +8,13 @@ import { createMechanismClearance } from './scene/mechanism-clearance';
 import { createMechanismInput } from './mechanism-input';
 import { createSocialOpeningBridge } from './scene/social-events';
 import { createFrameWorkRecorder } from './frame-work';
+import { createPrinterWorld } from './scene/printer';
+import { createPrinterLife } from './scene/printer-life';
+import { createPrinterInput } from './printer-input';
 
 const mount = document.querySelector<HTMLDivElement>('#scene')!;
 const error = document.querySelector<HTMLDivElement>('#error')!;
+const sceneSwitcher = document.querySelector<HTMLSelectElement>('#scene-switcher')!;
 let releaseFailedStartup: (() => void) | undefined;
 
 function showError(message: string) {
@@ -76,6 +79,16 @@ function startScene() {
   const listeners = new AbortController();
   const signal = listeners.signal;
   configureEnvironment(scene, renderer);
+  const environmentFloor = scene.children.find(object => object instanceof THREE.Mesh && object.geometry instanceof THREE.PlaneGeometry && object.material instanceof THREE.MeshStandardMaterial) as THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
+  // The reference's pink ground stays flat under tone mapping; its shadow is a separate, subtle layer.
+  const printerFloor = new THREE.Mesh(environmentFloor.geometry, new THREE.MeshBasicMaterial({ color: '#ff9bab', toneMapped: false, fog: false }));
+  printerFloor.name = 'printer-pink-ground'; printerFloor.rotation.copy(environmentFloor.rotation); printerFloor.visible = false;
+  const printerShadow = new THREE.Mesh(environmentFloor.geometry, new THREE.ShadowMaterial({ color: '#33363b', opacity: .10, toneMapped: false }));
+  printerShadow.name = 'printer-ground-shadow'; printerShadow.rotation.copy(environmentFloor.rotation); printerShadow.position.y = .001; printerShadow.receiveShadow = true; printerShadow.visible = false;
+  scene.add(printerFloor, printerShadow);
+  const keyLight = scene.children.find(object => object instanceof THREE.DirectionalLight && object.castShadow) as THREE.DirectionalLight;
+  const controllerKeyPosition = keyLight.position.clone(), controllerShadowRadius = keyLight.shadow.radius;
+  const controllerShadowFrustum = { left: keyLight.shadow.camera.left, right: keyLight.shadow.camera.right, top: keyLight.shadow.camera.top, bottom: keyLight.shadow.camera.bottom };
   const camera = new THREE.PerspectiveCamera(35, 1, .1, 160);
   const controls = new OrbitControls(camera, canvas);
   releaseFailedStartup = () => { listeners.abort(); controls.dispose(); releaseScene(scene, renderer); };
@@ -108,8 +121,17 @@ function startScene() {
     id => !clearance.checkLive(id as typeof assemblies[number]['id'], 0, 1).blocked,
     socialOpenings.event);
   let mechanismInput: ReturnType<typeof createMechanismInput> | undefined;
-  releaseFailedStartup = () => { mechanismInput?.dispose(); listeners.abort(); controls.dispose(); releaseScene(scene, renderer); };
+  let printerInput: ReturnType<typeof createPrinterInput> | undefined;
+  releaseFailedStartup = () => { mechanismInput?.dispose(); printerInput?.dispose(); listeners.abort(); controls.dispose(); releaseScene(scene, renderer); };
 
+  type SceneId = 'controller' | 'printer';
+  let activeScene: SceneId = 'controller';
+  let printer: ReturnType<typeof createPrinterWorld> | undefined;
+  let printerLife: ReturnType<typeof createPrinterLife> | undefined;
+  let printerMechanisms: ReturnType<typeof createMechanismState> | undefined;
+  let printerTime = 0;
+  let printerFramingCorners: THREE.Vector3[] = [];
+  const savedViews = new Map<SceneId, { position: THREE.Vector3; target: THREE.Vector3; view: 'overview' | 'free' }>();
   let view: 'overview' | 'free' = 'overview';
   let worldTime = restoredSocial ? community.socialHistory().time : 0, previousFrame: number | undefined;
   let testFrozen = false, pauseRequested = false, allowReducedMotion = false;
@@ -123,6 +145,12 @@ function startScene() {
   const movementKeys = new Set(['w', 'a', 's', 'd']);
   const moveForward = new THREE.Vector3(), moveRight = new THREE.Vector3(), movement = new THREE.Vector3();
   const worldUp = new THREE.Vector3(0, 1, 0);
+  const printerOverviewTarget = new THREE.Vector3(0, 4.7, 0);
+  const printerOverviewDirection = new THREE.Vector3(12, 10, 14.3).normalize();
+  function initialPrinterProgress(part: { id: string; initialProgress?: number }) {
+    const value = part.initialProgress;
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1 ? value : 0;
+  }
 
   // Fit only the controller and its residents, excluding the infinite ground.
   const bounds = new THREE.Box3().setFromObject(controller).expandByObject(community.group);
@@ -156,15 +184,131 @@ function startScene() {
     lastHistoryWrite = now; historyDirty = false;
   }
   function commandMechanism(id: string, source: 'pointer' | 'keyboard' | 'diagnostic') {
-    if (disposed || suspended || contextLost || document.hidden || !controls.enabled) return;
+    if (activeScene !== 'controller' || disposed || suspended || contextLost || document.hidden || !controls.enabled) return;
     mechanismInput?.prepareCommand();
     mechanisms.command(id, source, reducedMotion, worldTime);
     saveWorldHistory();
   }
-  mechanismInput = createMechanismInput({ canvas, camera, scene, assemblies, physical: controllerPhysicalControls(controller), reducedMotion: () => reducedMotion,
-    enabled: () => !disposed && !suspended && !contextLost && !document.hidden && controls.enabled,
-    cameraKeysHeld: () => heldKeys.size > 0,
-    toggle: commandMechanism, snapshots: mechanisms.snapshot });
+  function installControllerInput() {
+    mechanismInput = createMechanismInput({ canvas, camera, scene, assemblies, physical: controllerPhysicalControls(controller), reducedMotion: () => reducedMotion,
+      enabled: () => activeScene === 'controller' && !disposed && !suspended && !contextLost && !document.hidden && controls.enabled,
+      cameraKeysHeld: () => heldKeys.size > 0,
+      toggle: commandMechanism, snapshots: mechanisms.snapshot });
+  }
+  function commandPrinterPart(id: string, source: 'pointer' | 'keyboard' | 'diagnostic') {
+    if (activeScene !== 'printer' || disposed || suspended || contextLost || document.hidden || !controls.enabled) return;
+    printerInput?.cancel();
+    printerMechanisms?.command(id, source, reducedMotion, printerTime);
+  }
+  function initializePrinter() {
+    if (printer) return;
+    printer = createPrinterWorld();
+    printerLife = createPrinterLife();
+    scene.add(printer.group, printerLife.group);
+    for (const part of printer.parts) part.setProgress(initialPrinterProgress(part));
+    printer.update(0); printerLife.update(0);
+    const framedMatrices = new Map<THREE.Mesh, THREE.Matrix4>();
+    const right = new THREE.Vector3().crossVectors(worldUp, printerOverviewDirection).normalize();
+    const up = new THREE.Vector3().crossVectors(printerOverviewDirection, right).normalize();
+    const vertical = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * .94;
+    const horizontalPoints: number[][] = [];
+    let highestVerticalScore = -Infinity;
+    const highestVerticalPoint = new THREE.Vector3();
+    const point = new THREE.Vector3(), relative = new THREE.Vector3();
+    const instanceMatrix = new THREE.Matrix4(), worldMatrix = new THREE.Matrix4();
+    function framePrinterMeshes() {
+      printer!.group.updateMatrixWorld(true); printerLife!.group.updateMatrixWorld(true);
+      for (const root of [printer!.group, printerLife!.group]) root.traverse(object => {
+        if (!(object instanceof THREE.Mesh) || framedMatrices.get(object)?.equals(object.matrixWorld)) return;
+        framedMatrices.set(object, object.matrixWorld.clone());
+        const positions = object.geometry.getAttribute('position');
+        const count = object instanceof THREE.InstancedMesh ? object.count : 1;
+        for (let instance = 0; instance < count; instance++) {
+          worldMatrix.copy(object.matrixWorld);
+          if (object instanceof THREE.InstancedMesh) { object.getMatrixAt(instance, instanceMatrix); worldMatrix.multiply(instanceMatrix); }
+          for (let vertex = 0; vertex < positions.count; vertex++) {
+            point.fromBufferAttribute(positions, vertex).applyMatrix4(worldMatrix);
+            relative.copy(point).sub(printerOverviewTarget);
+            const depth = relative.dot(printerOverviewDirection);
+            horizontalPoints.push([Math.abs(relative.dot(right)), depth, point.x, point.y, point.z]);
+            const score = depth + Math.abs(relative.dot(up)) / vertical;
+            if (score > highestVerticalScore) { highestVerticalScore = score; highestVerticalPoint.copy(point); }
+          }
+        }
+      });
+    }
+    framePrinterMeshes();
+    // Open parts belong in the overview too. Sample their travel before input
+    // clones materials, then return to the authored initial pose.
+    for (const part of printer.parts) {
+      for (let sample = 0; sample <= 16; sample++) { part.setProgress(sample / 16); framePrinterMeshes(); }
+      part.setProgress(initialPrinterProgress(part));
+    }
+    // Keep the upper support envelope of actual vertices. This is exact for any
+    // viewport aspect at the overview angle, without retaining all mesh vertices
+    // or fitting empty corners of the large material batches.
+    horizontalPoints.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+    const envelope: number[][] = [];
+    let previousX = -Infinity;
+    for (const candidate of horizontalPoints) {
+      if (candidate[0] === previousX) continue;
+      previousX = candidate[0];
+      while (envelope.length > 1) {
+        const a = envelope[envelope.length - 2], b = envelope[envelope.length - 1];
+        if ((b[0] - a[0]) * (candidate[1] - a[1]) - (b[1] - a[1]) * (candidate[0] - a[0]) < 0) break;
+        envelope.pop();
+      }
+      envelope.push(candidate);
+    }
+    printerFramingCorners = [...envelope.map(vertex => new THREE.Vector3(vertex[2], vertex[3], vertex[4])), highestVerticalPoint];
+    printerMechanisms = createMechanismState(printer.parts.map(part => part.id),
+      (id, progress) => printer!.parts.find(part => part.id === id)!.setProgress(progress), () => true);
+    for (const part of printer.parts) printerMechanisms.setProgress(part.id, initialPrinterProgress(part));
+  }
+  function switchScene(next: SceneId) {
+    if (disposed || suspended || contextLost || next === activeScene) { sceneSwitcher.value = activeScene; return; }
+    clearHeldKeys();
+    mechanismInput?.dispose(); mechanismInput = undefined;
+    printerInput?.dispose(); printerInput = undefined;
+    // Empty the old scene's orbit momentum before retaining its exact viewpoint.
+    placeCamera(camera.position.clone(), controls.target.clone());
+    savedViews.set(activeScene, { position: camera.position.clone(), target: controls.target.clone(), view });
+    saveWorldHistory(true);
+    activeScene = next;
+    if (next === 'printer') initializePrinter();
+    controller.visible = community.group.visible = next === 'controller';
+    if (printer && printerLife) printer.group.visible = printerLife.group.visible = next === 'printer';
+    const contact = scene.getObjectByName('ambient-tray-contact');
+    if (contact) contact.visible = next === 'controller';
+    const background = next === 'printer' ? '#ff9bab' : '#e8e8e5';
+    (scene.background as THREE.Color).set(background);
+    (scene.fog as THREE.Fog).color.set(background);
+    environmentFloor.visible = next === 'controller';
+    printerFloor.visible = printerShadow.visible = next === 'printer';
+    if (next === 'printer') {
+      keyLight.position.set(-8, 32, 8);
+      Object.assign(keyLight.shadow.camera, { left: -11.5, right: 11.5, top: 11.5, bottom: -11.5 });
+      keyLight.shadow.radius = 4.5;
+    } else {
+      keyLight.position.copy(controllerKeyPosition);
+      Object.assign(keyLight.shadow.camera, controllerShadowFrustum);
+      keyLight.shadow.radius = controllerShadowRadius;
+    }
+    keyLight.shadow.camera.updateProjectionMatrix();
+    keyLight.target.position.y = next === 'printer' ? 4.7 : 0;
+    keyLight.target.updateMatrixWorld(true);
+    const saved = savedViews.get(next);
+    if (saved) { placeCamera(saved.position, saved.target); view = saved.view; if (view === 'overview') resetView(); }
+    else resetView();
+    if (next === 'controller') installControllerInput();
+    else printerInput = createPrinterInput({ canvas, camera, scene, parts: printer!.parts,
+      enabled: () => activeScene === 'printer' && !disposed && !suspended && !contextLost && !document.hidden && controls.enabled,
+      cameraKeysHeld: () => heldKeys.size > 0, toggle: commandPrinterPart, snapshots: printerMechanisms!.snapshot });
+    sceneSwitcher.value = next;
+    canvas.setAttribute('aria-label', next === 'controller' ? 'Interactive controller miniature' : 'Interactive printer neighborhood');
+    previousFrame = undefined;
+  }
+  installControllerInput();
 
   function togglePause() {
     if (disposed) return;
@@ -186,14 +330,14 @@ function startScene() {
   function resetView() {
     if (disposed) return;
     clearHeldKeys();
-    const target = new THREE.Vector3(0, .8, 0);
+    const target = activeScene === 'printer' ? printerOverviewTarget.clone() : new THREE.Vector3(0, .8, 0);
     const portrait = camera.aspect < .8;
-    const direction = (portrait ? new THREE.Vector3(-2, 23, 13) : new THREE.Vector3(-12, 16, 18)).normalize();
+    const direction = (activeScene === 'printer' ? printerOverviewDirection.clone() : portrait ? new THREE.Vector3(-2, 23, 13) : new THREE.Vector3(-12, 16, 18)).normalize();
     const right = new THREE.Vector3().crossVectors(worldUp, direction).normalize();
     const up = new THREE.Vector3().crossVectors(direction, right).normalize();
-    const vertical = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * (portrait ? .88 : .8);
+    const vertical = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * (activeScene === 'printer' ? .94 : portrait ? .88 : .8);
     let distance = controls.minDistance;
-    for (const corner of framingCorners) {
+    for (const corner of activeScene === 'printer' ? printerFramingCorners : framingCorners) {
       const relative = corner.clone().sub(target);
       const depth = relative.dot(direction);
       distance = Math.max(distance, depth + Math.abs(relative.dot(right)) / (vertical * camera.aspect), depth + Math.abs(relative.dot(up)) / vertical);
@@ -254,7 +398,7 @@ function startScene() {
     const forward = Number(heldKeys.has('w')) - Number(heldKeys.has('s'));
     const right = Number(heldKeys.has('d')) - Number(heldKeys.has('a'));
     if (!forward && !right) return;
-    moveForward.subVectors(controls.target, camera.position).setY(0).normalize();
+    moveForward.subVectors(controls.target, camera.position).normalize();
     moveRight.crossVectors(moveForward, worldUp).normalize();
     movement.copy(moveForward).multiplyScalar(forward).addScaledVector(moveRight, right).normalize();
     movement.multiplyScalar(camera.position.distanceTo(controls.target) * .22 * delta);
@@ -276,15 +420,21 @@ function startScene() {
     if (disposed || suspended || contextLost || document.hidden) return;
     const workTicket = import.meta.env.DEV ? frameWork!.begin(milliseconds) : undefined;
     const delta = previousFrame === undefined ? 0 : THREE.MathUtils.clamp((milliseconds - previousFrame) / 1000, 0, .05);
-    if (!testFrozen && !paused()) worldTime += delta;
+    if (!testFrozen && !paused()) { if (activeScene === 'controller') worldTime += delta; else printerTime += delta; }
     previousFrame = milliseconds;
     translateCamera(delta);
-    socialOpenings.observe(mechanisms.snapshot());
-    if (!mechanismsFrozen) mechanisms.advance(delta, worldTime, reducedMotion);
-    // Completions enter the social journal before its fixed ticks reach the same life time.
-    community.update(worldTime);
+    if (activeScene === 'controller') {
+      socialOpenings.observe(mechanisms.snapshot());
+      if (!mechanismsFrozen) mechanisms.advance(delta, worldTime, reducedMotion);
+      // Completions enter the social journal before its fixed ticks reach the same life time.
+      community.update(worldTime);
+    } else {
+      if (!mechanismsFrozen) printerMechanisms!.advance(delta, printerTime, reducedMotion);
+      printer!.update(printerTime); printerLife!.update(printerTime);
+    }
     controls.update();
     mechanismInput?.update(mechanisms.snapshot().some(state => state.progress !== state.target), delta);
+    printerInput?.update();
     if (historyDirty) saveWorldHistory();
     renderer.render(scene, camera);
     if (import.meta.env.DEV) frameWork!.complete(workTicket!);
@@ -301,6 +451,7 @@ function startScene() {
     clearHeldKeys();
     renderer.setAnimationLoop(null);
     mechanismInput?.dispose();
+    printerInput?.dispose();
     listeners.abort();
     controls.removeEventListener('start', markExploring);
     controls.dispose();
@@ -308,6 +459,7 @@ function startScene() {
   }
 
   window.addEventListener('resize', resize, { signal });
+  sceneSwitcher.addEventListener('change', () => switchScene(sceneSwitcher.value === 'printer' ? 'printer' : 'controller'), { signal });
   controls.addEventListener('start', markExploring);
   window.addEventListener('keydown', keyboard, { signal });
   window.addEventListener('keyup', event => heldKeys.delete(event.key.toLowerCase()), { signal });
@@ -324,10 +476,12 @@ function startScene() {
     event.preventDefault();
     clearHeldKeys();
     mechanismInput?.cancel();
+    printerInput?.cancel();
     saveWorldHistory(true);
     inputBeforeContextLoss = controls.enabled;
     controls.enabled = false;
     contextLost = true;
+    sceneSwitcher.disabled = true;
     previousFrame = undefined;
     renderer.setAnimationLoop(null);
     // Remove the old GL cache listeners while their context is lost. Three.js
@@ -338,6 +492,7 @@ function startScene() {
   }, { signal });
   canvas.addEventListener('webglcontextrestored', () => {
     contextLost = false;
+    sceneSwitcher.disabled = false;
     controls.enabled = inputBeforeContextLoss;
     error.hidden = true;
     resize();
@@ -346,6 +501,7 @@ function startScene() {
   window.addEventListener('pagehide', event => {
     clearHeldKeys();
     mechanismInput?.cancel();
+    printerInput?.cancel();
     saveWorldHistory(true);
     if (event.persisted) {
       suspended = true;
@@ -365,15 +521,18 @@ function startScene() {
       camera: () => ({ position: camera.position.toArray(), target: controls.target.toArray() }),
       metrics: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs?.length ?? 0 }),
       frameWork: () => frameWork!.snapshot(),
-      setTime: (time: number) => { community.seek(time); testFrozen = true; worldTime = time; previousFrame = undefined; },
+      setTime: (time: number) => { if (activeScene === 'controller') { community.seek(time); worldTime = time; } else { printerTime = time; printer!.update(time); printerLife!.update(time); } testFrozen = true; previousFrame = undefined; },
       resume: releaseTestClock,
       releaseTestClock,
       residents: () => community.snapshot(),
       social: () => community.socialSnapshot(),
       socialHistory: () => community.socialHistory(),
       routes: () => community.auditRoutes(),
-      state: () => ({ time: worldTime, paused: paused(), reducedMotion, testFrozen, view, suspended, disposed, contextLost, heldKeys: [...heldKeys].sort() }),
-      setInputEnabled: (enabled: boolean) => { controls.enabled = enabled; if (!enabled) { clearHeldKeys(); mechanismInput?.cancel(); } },
+      state: () => ({ time: activeScene === 'controller' ? worldTime : printerTime, scene: activeScene, paused: paused(), reducedMotion, testFrozen, view, suspended, disposed, contextLost, heldKeys: [...heldKeys].sort() }),
+      setInputEnabled: (enabled: boolean) => { controls.enabled = enabled; if (!enabled) { clearHeldKeys(); mechanismInput?.cancel(); printerInput?.cancel(); } },
+      selectedScene: () => activeScene,
+      printer: () => printer ? { time: printerTime, life: printerLife!.snapshot(), mechanisms: printerMechanisms!.snapshot(), events: printerMechanisms!.events(), input: printerInput?.diagnostics() } : undefined,
+      printerPartPoints: () => printerInput?.screenPoints(),
       mechanisms: mechanisms.snapshot,
       mechanismEvents: mechanisms.events,
       commandMechanism: (id: string) => commandMechanism(id, 'diagnostic'),

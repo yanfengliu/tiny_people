@@ -1,12 +1,52 @@
 # Defect register
 
+## Printer people appeared in slow motion
+
+**Reported symptom:** On 2026-09-29 the user saw slow-motion residents in the printer preview.
+
+**Investigation and cause:** Authored 26-second travel with a 1.6-second ramp limited gallery/street speeds to .108073/.065483 units per second; the old .22-unit gait took at least 2.04/3.36 seconds per full cycle. Native clock observation excluded a separate clock slowdown within its sampled window.
+
+**Correction and check:** Printer life 79094C1D uses .36 units per second, a .65-second ramp and .40-unit gait, approximately 1.8 steps per second, with continuous purposeful dwell. Actual emitted pelvis/shoe measurements in life checker 421AE5DA/report E0D4000A confirm all eight walkers at .35999985–.35999994 and a 1.116667-second gait cycle. Restoring the actual old travel/ramp/gait source executes a red control. The final 17-group native report 026BD252 independently sums 760 contiguous frames: 4.52 life seconds equal 4.52 clamped seconds. No global clock multiplier was added; native cadence is diagnostic, not GPU-completion evidence. Final floral bytes receive their own source-bound checks.
+
+## Printer ground and background carried an excessive shadow
+
+**Reported symptom:** On 2026-09-29 the user clarified that the weird pink shade referred to the ground/background and its shadow.
+
+**Investigation and cause:** The lit ground changed the reference pink, and the low directional light cast a long dark silhouette far beyond the machine. Correct source color alone did not make its displayed pixels match the backdrop.
+
+**Correction and check:** Main DA132D7C presents flat reference pink with a separate neutral low-opacity shadow and raises the printer-only key light, restoring controller lighting on return. Matched native report DBD78005 passes fixed gutter samples at RGB 255/155/171; restoring the actual old light height in report 641B2255 reproduces the distant patch at RGB 235/145/160 and fails. Source-bound 17-pose projection report 3937EDD6 verifies caster/frustum coverage and shorter projection. The coordinator inspected the old default plus current open, closed and back images individually; a short nearby cast shadow remains deliberate. These sampled views do not certify every orbit or graphics device.
+
+## W/S ignored the camera's vertical facing component
+
+**Requested change:** On 2026-09-29 the user required W to move exactly forward along the facing direction and S backward.
+
+**Investigation and cause:** The earlier camera projection flattened Y to zero. Pitched or nearly vertical views therefore moved horizontally instead of along the full view direction.
+
+**Correction and check:** Camera and target translate together along their normalized full difference vector; A/D retains a horizontal side direction. Eight actual held-key trials across both scenes and pitched/near-vertical W/S views verify direction, equal camera/target movement, retained distance, release and editable/modifier exclusion. Restoring the executed old XZ projection fails the first pitched W trial. Full report 026BD252 repeats the positive trials on main DA132D7C; historical horizontal-pan requirements below are superseded for W/S.
+
+## Screen-reader instructions flashed during page startup
+
+**Reported symptom:** On 2026-09-29 the user saw instruction text when the controller page loaded, then watched it disappear as the model appeared.
+
+**Investigation and cause:** HTML contained the accessible paragraph immediately, but its clipping CSS arrived through the application JavaScript import. Delaying the application module exposed the full paragraph before styles arrived.
+
+**Correction and check:** The HTML head loads the stylesheet before rendering; the duplicate JavaScript style import is removed. The native scene startup subgroup delays actual scripts in development and production, verifies clipped text and a visible dropdown before and after the canvas appears, and retains the accessibility instructions. Removing the executed stylesheet link reproduces the flash and fails. The final 17-group report 026BD252 passes this subgroup on main DA132D7C, with no owned browser leftovers; detailed source/report bounds are in work 5's scene-integration verification.
+
+## Printer gallery floors flickered and corners lacked a supported connection
+
+**Reported symptom:** On 2026-09-29 the user marked a disconnected lower front/right sidewalk corner. Native review independently found pink/cyan floor and fascia interference. The user's ambiguous pink marks were later clarified as ground/background and its shadow; that environment complaint is recorded separately.
+
+**Investigation and cause:** Native close-ups show coplanar opaque wood/structural tops and overlapping gallery bridge plates. Source inspection found side galleries ending at Z2.595 while the front gallery begins at Z2.67; an overlapping corner patch did not establish a coherent floor and rail connection. Separating top surfaces exposed a second class: the hidden structural slab and gallery still shared an outward vertical face at Z3.35, causing red/cyan interference on the fascia. A corridor assumed wood began at X.18, but the emitted edge was X.265, leaving an .085-unit gap.
+
+**Correction and check:** E81067DD joins real wood/gallery edges at unchanged floor heights and separates structural tops and vertical fascias. Checker 1E8B4FDD/report 3AEE6EF2 discovers 808 bounded actual slab faces on all three axes and verifies supported body/prop paths at intervals at most .035 units. Executed controls restore wood/top overlap, cyan/side-gallery overlap, vertical fascia coincidence and a zero-rise tread; all reject. The coordinator inspected all 23 source-bound camera-delivery images, including clean room, roof, stair and gallery close-ups. Detailed bounds remain in work 5's world-verification.md; this is not a general coplanarity certificate for every mesh.
+
 ## Printer stairs differed from the reference and lacked a credible walking route
 
 **Reported symptom:** On 2026-09-29 the user asked whether the stairs match the reference and whether they are safe and make sense. The native third-candidate stairs crossed the front windows instead of following attached corner landings around the right wing.
 
 **Investigation and cause:** The drafted flights rose 1.5 units over a 1.69-unit run, approximately 41.6 degrees. Twelve intervals produced .125-unit risers, roughly one fifth of an adult resident's height. Guard posts every two treads left .281-unit horizontal gaps. Feature-presence checks established stairs existed but did not establish usable floor entrances, proportionate steps or protected edges.
 
-**Correction and check:** Open in work 5. The world worker owns connected zigzag/side flights, floor-entry gaps, step proportions and continuous guarded landings. Acceptance requires measured actual emitted geometry and broken-connection, missing-guard and oversized-riser negative controls, followed by native reference comparison. This is miniature-world plausibility and geometry coverage, not a building-code certification.
+**Correction and check:** E81067DD uses 25 true .060-unit risers per attached flight, .108 going, .66 width and 29.055-degree pitch, with adjacent lanes and guarded supported turns. The final 1E8B checker/report 3AEE6EF2 tests 304,512 actual full-shoe samples, 66 guarded service edges and 2,035 actual body/prop/support poses. Restored thick treads, shared-lane head strikes, short roof hatch, missing guards, oversized risers and broken landings reject. Native reference/stair close-ups confirm coherent connections within captured views. This is miniature-world plausibility, not building-code certification or animated stair climbing.
 
 ## Printer draft matched colors but missed the reference architecture
 
@@ -14,7 +54,7 @@
 
 **Investigation and cause:** The initial implementation fixed four regular inhabited floors before extracting the reference's main silhouette and projecting forms. Color and furniture detail could not compensate for the missing large looping duct, broad curved paper waterfall, asymmetrical room wings and external stairs.
 
-**Correction and check:** Open in work 5. The architecture worker is replacing those forms while keeping resident supports coherent. Acceptance now requires direct native-resolution reference comparison plus measured checks of the actual rendered feature geometry and deliberate absent/flattened-feature controls. Those checks cover structural regression; manual visual review still owns proportions, density and overall resemblance. No completed fidelity check is claimed yet.
+**Correction and check:** Work 5 replaces the tower with the reference's solid copier, looping duct, broad paper waterfall, wrapped coral homes, rounded cyan annex and attached zigzag stairs. The final parts gate executes absent/flattened-feature controls; the life gate rejects the earlier green-dominated garden and tests six independent dense crown crops. Coordinator and independent final native review inspect the original reference, 25 unique scene images and 23 fixed/varied/activity images individually. No material fidelity finding remains within those views. Fine faceted blossoms and inferred rear construction remain explicit interpretation bounds; numerical feature presence alone never establishes resemblance.
 
 ## Outside-canvas release blocked fresh touch input (F1)
 
@@ -215,3 +255,28 @@
 **Investigation and cause:** A fixed camera-distance multiplier ignored the narrower horizontal field of view of the portrait viewport.
 
 **Earlier correction:** The model-only revision fits controller/community bounds against both dimensions of the camera frustum and centers the overview. Portrait framing was corrected and inspected before the user removed mobile support from scope. Current browser checks cover desktop resizing; acceptance still requires native silhouette inspection because DOM overflow cannot detect a model clipped inside WebGL.
+
+## Ground foliage looked connected but its roots floated
+
+**Reported symptom:** Functional review found that layered ground shrubs and the retained low green bed could have closed leaves without touching their supporting stems.
+
+**Investigation and cause:** Earlier checks certified closed geometry, populations and crown coverage. They did not trace every emitted cloud-leaf root to a ground-connected branch. Actual 48ED geometry had 438 of 681 closed-leaf roots and 875 of 876 warm-shrub roots disconnected, despite nearby stems.
+
+**Correction and check:** Added actual closed branches from existing cloud forks to every grid spray, preserving the visible root positions and budget. `npm run check:printer-life` checks the complete two cloud batches against emitted closed branch solids reachable from branch bases at independent Y=0. The final gate passes all 1557 roots and executes/restores raised-support, detached-root and missing-low-bed controls. This is a datum-grounded contact bound; it does not certify fern/crown contact or emitted-soil grounding through that cloud test.
+
+## Sparse crown rays omitted legitimate supporting wood
+
+**Reported symptom:** Regular-profile 98AA passed all six dense crown crops but failed the sparse crown rays; diagnostic review found that four of seven misses hit actual local branches.
+
+**Investigation and cause:** Dense projection included local branches, while the sparse guard counted flowers/leaves only. The four branch hits were inside the existing independent crown volumes and physically connected through actual closed branch bases to the correct tree trunk. Three genuine holes remained.
+
+**Correction and check:** `npm run check:printer-life` retains the same 31 rays, ranges, extents and 95% threshold, adding only actual crop-contained wood hits with measured closed-solid ancestry to the independently placed correct trunk. Distant and crossing wood connected to that trunk reject the crop condition; removing only that filter reproduces false eligibility. Local wood attached only to the other trunk and opened wood faces also reject. Mostly removed flowers and missing crowns still fail unchanged coverage/color or extent requirements. The six dense 95/60 tests remain unchanged; dense vertical top coverage remains unmeasured.
+
+## A shape control failed the size guard first
+
+**Reported symptom:** The final BA life gate failed its expected sphere-shape rejection because the test sphere measured .701 adult heads wide and reached the .65 size guard first.
+
+**Investigation and cause:** The rejected shape fixtures kept unit-radius geometry while the accepted blossom profile had a smaller regular-tetrahedron diameter. The adjacent folded-shape control shared the ordering risk.
+
+**Correction and check:** Sized both shape fixtures to .8 while leaving the separate oversized-fold stimulus unchanged. `npm run check:printer-life` keeps specific shape/scale error assertions; executed actual geometry shows fine sphere/fold .618876-head widths pass scale and fail shape, while the oversized fold remains 2.251713 heads and fails scale. Restored production positives pass, and the final whole gate executes all 28 controls. The failed BA report and exact two-line repair review retain provenance; no regex or threshold was loosened.
+

@@ -26,6 +26,9 @@
     "check:physical-input": "node scripts/check-physical-input.mjs",
     "check:touch-input": "node scripts/check-touch-input.mjs",
     "check:exploration": "node scripts/check-exploration.mjs",
+    "check:scenes": "node scripts/check-scenes.mjs",
+    "check:printer-life": "node scripts/check-printer-life.mjs",
+    "check:printer-parts": "node scripts/check-printer-parts.mjs",
     "check:mechanism-state": "node scripts/check-mechanism-state.mjs",
     "check:mechanisms": "node scripts/check-mechanisms.mjs",
     "check:mechanism-input": "node scripts/create-mechanism-input-fixtures.mjs && node scripts/check-mechanism-input.mjs"
