@@ -1,0 +1,11 @@
+# Repaired paper native review
+
+Coordinator, 2026-09-30. The actual native report is output/transit-world/native-paper-review-repair/report.json,E619984D8559EB42AF1E5A1A76351982CE764B1DB3036F37C02F862FE70E0B61. All nine original1056×1013PNGs were individually viewed at original resolution and each SHA-256 was recomputed against the report; all match. Runtime sources before/after are identical, and native/wrapper cleanup records no remaining owned process or error. This is sampled visual acceptance, not GPU completion or an all-camera certificate.
+
+stack-00-empty-start(C0D122ED) and stack-01-grown-after-start(47E0D89E) exercise the reported low camera after the initial count-zero render. The grown stack retains visible underlying layers along its lower edge; the sheet has physical support through to the ground. The pure actual-frustum gate separately reproduces and rejects the original cached empty sphere.
+
+paper-05-t4_8(A9AD5AC9),paper-06-t5_65(DE4A3C27),paper-07-t6_1(59E5E564),paper-08-t8_5(0F896252),paper-09-t16(ABDBCF7D) andpaper-10-t128(D525D162) retain crisp settled plans, the next-page reset and coherent capped-stack overview. The close stack views do not show the outlet; partial ordinary feeding retains the two earlier individually inspected witnesses and exact automatic geometry/material parity at twelve times. Unchanged stair/slide visuals retain native-review-3's exact geometry-bound acceptance.
+
+paper-11-after-real-reversal(9673DF64) visibly shows a partial printed ribbon growing from the outlet above a supported stack. Actual focused Enter input reverses at progress.428333, reaches peak.555833 and ends closed; recorded travel advances2→3.111667 while retained time remains6.1. This observes real input and rendering; the separate mechanism CPU gate proves fine/coarse partition equality.
+
+All twelve default count samples stay within525calls/1,110,000triangles; peak424calls/1,109,580triangles leaves420triangles of headroom. The narrow repair does not add geometry. Product source is main362AC2FD,worldC52EB093,paper39769413,mechanismE4A8D6A3. Frozen review snapshot198460E2 covers71 source/config files; pinned focused review and the remaining affected input gates are pending.
