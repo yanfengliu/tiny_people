@@ -1,5 +1,13 @@
 # Defect register
 
+## Printer stairs differed from the reference and lacked a credible walking route
+
+**Reported symptom:** On 2026-09-29 the user asked whether the stairs match the reference and whether they are safe and make sense. The native third-candidate stairs crossed the front windows instead of following attached corner landings around the right wing.
+
+**Investigation and cause:** The drafted flights rose 1.5 units over a 1.69-unit run, approximately 41.6 degrees. Twelve intervals produced .125-unit risers, roughly one fifth of an adult resident's height. Guard posts every two treads left .281-unit horizontal gaps. Feature-presence checks established stairs existed but did not establish usable floor entrances, proportionate steps or protected edges.
+
+**Correction and check:** Open in work 5. The world worker owns connected zigzag/side flights, floor-entry gaps, step proportions and continuous guarded landings. Acceptance requires measured actual emitted geometry and broken-connection, missing-guard and oversized-riser negative controls, followed by native reference comparison. This is miniature-world plausibility and geometry coverage, not a building-code certification.
+
 ## Printer draft matched colors but missed the reference architecture
 
 **Reported symptom:** During the 2026-09-29 printer-scene work, the user said the model was not exactly like the reference image. The initial native renders showed a regular rectangular blue tower with repeated coral balcony strips, a narrow side duct and a short paper strip.
