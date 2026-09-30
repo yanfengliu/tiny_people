@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { createResidents, residentMetrics } from './residents';
 import type { ResidentArm, ResidentPoint, ResidentPose, SharedResidentProp } from './residents';
+import { printerTransitAt, printerTransitSchedule } from './printer-transit';
+import type { PrinterTransitFrame } from './printer-transit';
 
-type Activity = 'walk' | 'read' | 'coffee' | 'talk' | 'water' | 'work';
+type Activity = 'walk' | 'read' | 'coffee' | 'talk' | 'water' | 'work' | 'slide';
 type Station = { id: number; floor: number; x: number; z: number; yaw: number; activity: Activity; seated?: boolean };
-type LifePose = Station & { walking: boolean; distance: number; speed: number; speedMaximum: number; time: number };
+type LifePose = Station & { walking: boolean; distance: number; speed: number; speedMaximum: number; time: number; transit?: PrinterTransitFrame };
 type WalkRoute = { floor: number; left: number; right: number; centerZ: number; radiusX: number; radiusZ: number; turnDistances: number[]; turnLength: number };
 
 const PERSON_SCALE = 1.6;
@@ -22,7 +24,7 @@ function route(floor: number, left: number, right: number, centerZ: number, radi
   return { floor, left, right, centerZ, radiusX, radiusZ, turnDistances, turnLength: turnDistances[128] };
 }
 const routes: WalkRoute[] = [
-  ...FLOORS.slice(0, 3).map(floor => route(floor, .67, 2.93, 3.0, .12, .12)),
+  ...FLOORS.slice(0, 3).map(floor => route(floor, .75, 2.65, 2.85, .10, .06)),
   route(.10, 3.95, 5.0, 3.865, .10, .235),
 ];
 const walkingSpeed = .36;
@@ -92,7 +94,13 @@ function dailyPoses(time: number): LifePose[] {
     const point = balconyPoint(distance, route);
     return { id, floor: route.floor, ...point, activity: path.speed > .004 ? 'walk' as const : lane ? 'read' as const : 'coffee' as const, walking: path.speed > .004, distance, speed: path.speed, speedMaximum: path.speedMaximum, time: halfTime - travel };
   }));
-  return [...walkers, ...stations.map(station => ({ ...station, walking: false, distance: 0, speed: 0, speedMaximum: 1, time: positiveModulo(time + station.id * 1.73, 24) }))];
+  return [...walkers.map(actor => {
+    const transit = printerTransitAt(actor.id, time);
+    if (!transit) return actor;
+    return { ...actor, x: transit.position[0], floor: transit.position[1], z: transit.position[2], yaw: transit.yaw,
+      activity: transit.mode === 'slide' ? 'slide' as const : 'walk' as const, seated: transit.seated, walking: transit.walking,
+      speed: transit.speed, speedMaximum: transit.speedMaximum, distance: transit.distance, time, transit };
+  }), ...stations.map(station => ({ ...station, walking: false, distance: 0, speed: 0, speedMaximum: 1, time: positiveModulo(time + station.id * 1.73, 24) }))];
 }
 
 /** Two bounded bones meet at one elbow; props specify the hand rather than floating near it. */
@@ -157,11 +165,24 @@ export function createPrinterLife() {
         yaw: actor.yaw, seated: actor.seated ?? false, walking: actor.walking,
         walkAmount: THREE.MathUtils.clamp(actor.speed / actor.speedMaximum, 0, 1),
         walkPhase: actor.distance / gaitLength * TAU, activity: actor.activity === 'walk' ? 'walk' : actor.activity === 'talk' ? 'talk' : actor.activity === 'water' ? 'water' : 'relax',
-        time: lastTime, lean: actor.id === 13 ? .024 : actor.id === 24 ? .012 : actor.activity === 'water' ? .006 : actor.seated ? .006 : 0,
-        headRotation: [0, Math.sin(lastTime * .5 + actor.id) * .07, 0],
+        time: lastTime, lean: actor.transit ? 0 : actor.id === 13 ? .024 : actor.id === 24 ? .012 : actor.activity === 'water' ? .006 : actor.seated ? .006 : 0,
+        headRotation: [0, Math.sin(lastTime * .5 + actor.id) * .07, 0], recordBodyParts: true,
+        ...(actor.transit ? { legs: actor.transit.legs, orientation: actor.transit.orientation, hipHeight: actor.transit.hipHeight } : {}),
       };
       const { hip, scale } = residentMetrics(pose);
-      const held = actor.id < 8 ? actor.id % 2 ? 'book' : 'cup' : actor.activity === 'read' ? 'book' : actor.activity === 'coffee' ? 'cup' : actor.activity === 'water' ? 'water' : undefined;
+      const held = actor.transit ? undefined : actor.id < 8 ? actor.id % 2 ? 'book' : 'cup' : actor.activity === 'read' ? 'book' : actor.activity === 'coffee' ? 'cup' : actor.activity === 'water' ? 'water' : undefined;
+
+      if (actor.transit && ['enter-slide', 'slide', 'stand'].includes(actor.transit.mode)) {
+        const amount = actor.transit.seatedAmount ?? 1;
+        pose.arms = [-1, 1].map(side => {
+          const target = armTo(pose, side, [side * .034, hip + .033, .077]);
+          return {
+            elbow: new THREE.Vector3(side * .046, hip + .043, 0).lerp(new THREE.Vector3(...target.elbow), amount).toArray() as ResidentPoint,
+            hand: new THREE.Vector3(side * .044, hip - .012, 0).lerp(new THREE.Vector3(...target.hand), amount).toArray() as ResidentPoint,
+          };
+        }) as [ResidentArm, ResidentArm];
+        pose.headRotation = [.08 * amount, Math.sin(lastTime * .5 + actor.id) * .07 * (1 - amount), 0];
+      }
 
       function prop(kind: SharedResidentProp['kind'], center: ResidentPoint, pitch: number, handTargets: [ResidentPoint, ResidentPoint], drops: ResidentPoint[] = []) {
         pose.arms = [armTo(pose, -1, handTargets[0]), armTo(pose, 1, handTargets[1])];
@@ -252,8 +273,10 @@ export function createPrinterLife() {
     const matrix = new THREE.Matrix4(), point = new THREE.Vector3();
     return {
       time: lastTime, count: lastPoses.length, drawBatches: residents.group.children.length + 1,
+      transitSchedule: printerTransitSchedule,
       residents: lastPoses.map((pose, index) => ({
         id: pose.id, position: [pose.x, pose.floor, pose.z], yaw: pose.yaw, activity: pose.activity, seated: !!pose.seated, floor: pose.floor,
+        walking: pose.walking, speed: pose.speed, ...(pose.transit ? { transit: { mode: pose.transit.mode, segment: pose.transit.segment, progress: pose.transit.progress, cycle: pose.transit.cycle, resource: pose.transit.resource, tread: pose.transit.tread } } : {}),
         feet: [0, 1].map(side => {
           shoes.getMatrixAt(index * 2 + side, matrix);
           matrix.premultiply(shoes.matrixWorld);

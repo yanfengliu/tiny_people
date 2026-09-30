@@ -20,12 +20,19 @@ export type ResidentPose = {
   lean?: number;
   headRotation?: ResidentPoint;
   arms?: [ResidentArm, ResidentArm];
+  /** Printer travel supplies planted steps and a seated tube orientation in local anatomy units. */
+  legs?: [ResidentLeg, ResidentLeg];
+  orientation?: [number, number, number, number];
+  hipHeight?: number;
+  /** Scene-specific geometry diagnostics; absent poses keep the original record allocation. */
+  recordBodyParts?: boolean;
 };
 
 export type ResidentPoint = [number, number, number];
 /** Optional scene-specific tessellation; omitted fields preserve the controller meshes. */
 export type ResidentMeshDetail = { skin?: [number, number]; hair?: [number, number]; clothes?: number };
 export type ResidentArm = { elbow: ResidentPoint; hand: ResidentPoint };
+export type ResidentLeg = { knee: ResidentPoint; ankle: ResidentPoint; foot: ResidentPoint; shoeRotation?: [number, number, number, number] };
 export type SharedResidentProp = {
   id: string; kind: 'book' | 'cup' | 'water'; owner: number;
   position: ResidentPoint; quaternion: [number, number, number, number]; scale: number;
@@ -34,11 +41,11 @@ export type SharedResidentProp = {
 };
 type Point = ResidentPoint;
 type PartRef = { batch: string; index: number };
-type BodyRecord = { id: number; head?: PartRef; mouth?: PartRef; hands: PartRef[]; held: PartRef[]; heldKind?: 'book' | 'cup' | 'water'; waterDrops: PartRef[] };
-export function residentMetrics(pose: Pick<ResidentPose, 'id' | 'seated'>) {
+type BodyRecord = { id: number; head?: PartRef; mouth?: PartRef; hands: PartRef[]; held: PartRef[]; heldKind?: 'book' | 'cup' | 'water'; waterDrops: PartRef[]; parts?: PartRef[] };
+export function residentMetrics(pose: Pick<ResidentPose, 'id' | 'seated' | 'hipHeight'>) {
   const variant = Math.abs(Math.trunc(pose.id));
   const scale = .92 + variant % 7 * .027;
-  return { scale, breadth: .95 + variant % 5 * .025, hip: pose.seated ? .135 / scale + .017 : .194 };
+  return { scale, breadth: .95 + variant % 5 * .025, hip: pose.hipHeight ?? (pose.seated ? .135 / scale + .017 : .194) };
 }
 const shirts = ['#f47722', '#ffd529', '#00bdda', '#f6e9cd', '#f35d47', '#0cacc4', '#f5cd26', '#ff8b35'];
 const trousers = ['#08a9ca', '#33434a', '#e99b36', '#f4c834', '#48707a'];
@@ -217,6 +224,7 @@ export function createResidents(count: number, detail: ResidentMeshDetail = {}) 
   const color = new THREE.Color();
   let pose: ResidentPose;
   let scale = 1;
+  let bodyRecord: BodyRecord | undefined;
 
   function part(target: typeof clothes, center: Point, dimensions: Point, tint: string, orientation?: THREE.Quaternion) {
     position.set(...center).multiplyScalar(scale).applyQuaternion(residentRotation);
@@ -229,7 +237,9 @@ export function createResidents(count: number, detail: ResidentMeshDetail = {}) 
     const index = target.used++;
     target.mesh.setMatrixAt(index, matrix);
     target.mesh.setColorAt(index, color.set(tint));
-    return { batch: target.mesh.name, index };
+    const ref = { batch: target.mesh.name, index };
+    bodyRecord?.parts?.push(ref);
+    return ref;
   }
 
   function bone(a: Point, b: Point, radius: number, tint: string, target = limbs) {
@@ -250,6 +260,8 @@ export function createResidents(count: number, detail: ResidentMeshDetail = {}) 
       scale = metrics.scale;
       const breadth = metrics.breadth;
       const record: BodyRecord = { id: pose.id, hands: [], held: [], waterDrops: [] }; records.push(record);
+      bodyRecord = record;
+      if (pose.recordBodyParts) record.parts = [];
       const shirt = shirts[variant % shirts.length];
       const pants = trousers[(variant * 3) % trousers.length];
       const complexion = skin[(variant * 5) % skin.length];
@@ -258,6 +270,10 @@ export function createResidents(count: number, detail: ResidentMeshDetail = {}) 
       const stride = pose.walking && !pose.seated ? Math.sin(pose.walkPhase) * walkAmount : 0;
       const active = pose.walking && !pose.seated;
       residentRotation.setFromAxisAngle(up, pose.yaw);
+      if (pose.orientation) {
+        if (!pose.orientation.every(Number.isFinite) || Math.abs(Math.hypot(...pose.orientation) - 1) > 1e-5) throw new Error(`Resident ${pose.id} requires a finite unit body orientation.`);
+        residentRotation.set(...pose.orientation);
+      }
       // World dy/dx,dy/dz become gradients along this person's sideways/forward axes.
       const cosine = Math.cos(pose.yaw), sine = Math.sin(pose.yaw);
       const slopeX = (pose.groundSlopeX ?? 0) * cosine - (pose.groundSlopeZ ?? 0) * sine;
@@ -282,10 +298,19 @@ export function createResidents(count: number, detail: ResidentMeshDetail = {}) 
         const lift = active ? Math.max(0, Math.cos(pose.walkPhase) * side) * .021 * walkAmount : 0;
         const footX = side * .020, footZ = pose.seated ? .104 : step + .008;
         const floorAtFoot = slopeX * footX + slopeZ * footZ;
-        const foot: Point = [footX + groundNormal.x * .007, floorAtFoot + groundNormal.y * .007 + lift, footZ + groundNormal.z * .007];
-        const ankle: Point = [footX, .023 + lift + slopeX * footX + slopeZ * (footZ - .009), footZ - .009];
+        let foot: Point = [footX + groundNormal.x * .007, floorAtFoot + groundNormal.y * .007 + lift, footZ + groundNormal.z * .007];
+        let ankle: Point = [footX, .023 + lift + slopeX * footX + slopeZ * (footZ - .009), footZ - .009];
         // Seated thighs rest above the seat; shins clear its +.074 front edge.
-        const knee: Point = [side * .020, pose.seated ? hip : .105 + lift * .45, pose.seated ? .102 : step * .5 + .012];
+        let knee: Point = [side * .020, pose.seated ? hip : .105 + lift * .45, pose.seated ? .102 : step * .5 + .012];
+        const explicitLeg = pose.legs?.[side === -1 ? 0 : 1];
+        if (explicitLeg) {
+          ({ foot, ankle, knee } = explicitLeg);
+          if (![...foot, ...ankle, ...knee].every(Number.isFinite)) throw new Error(`Resident ${pose.id} requires finite travel leg joints.`);
+          const upperLength = Math.hypot(knee[0] - side * .020, knee[1] - (hip - .002), knee[2]);
+          const lowerLength = Math.hypot(...ankle.map((value, index) => value - knee[index]));
+          if (upperLength > .109001 || lowerLength > .111001) throw new Error(`Resident ${pose.id} exceeds bounded travel leg lengths (${upperLength.toFixed(5)}, ${lowerLength.toFixed(5)}).`);
+          shoeRotation.set(...(explicitLeg.shoeRotation ?? [0, 0, 0, 1]));
+        }
         bone([side * .020, hip - .002, 0], knee, .014 * breadth, pants);
         bone(knee, ankle, .011 * breadth, pants);
         part(fabricDetails, knee, [.0115 * breadth, .0095, .0115], pants);
@@ -349,6 +374,7 @@ export function createResidents(count: number, detail: ResidentMeshDetail = {}) 
       else if (variant % 4 === 1) headPart([0, -.010, -.012], [.0138, .018, .010], hairColor, hairDetails);
     }
     const propRecords: { id: string; kind: SharedResidentProp['kind']; owner: number; parts: PartRef[]; contacts: SharedResidentProp['contacts']; waterDrops: PartRef[] }[] = [];
+    bodyRecord = undefined;
     const propIds = new Set<string>();
     for (const prop of props) {
       if (propIds.has(prop.id)) throw new Error(`Duplicate shared prop ${prop.id}.`);

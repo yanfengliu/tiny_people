@@ -1,5 +1,109 @@
 # Defect register
 
+## Growing paper stacks could lose rendered support
+
+**Observed symptom:** Pinned independent review found that underlying ground-stack layers could disappear after an empty startup render and a valid camera move.
+
+**Investigation and cause:** InstancedMesh cached an empty object sphere at count zero. Later instance growth left that culling bound stale. Direct emitted support checks passed because they did not ask the renderer's frustum predicate.
+
+**Correction and check:** A fixed capacity box and sphere cover all seven underlying page matrices and downward compression. The permanent paper gate checks every emitted box vertex across all counts, executes the original empty-sphere culling RED at retained time 48 and the reported camera, then restores GREEN. Native startup-to-grown images separately show the rendered layers. This is a bounded camera/geometry proof, not a certificate for every view.
+
+## Midstroke print reversal depended on frame cadence
+
+**Observed symptom:** Identical real Print commands reversed at .5 seconds produced 1.15 page travel at 1/120-second cadence and 1.147083 at 50 ms cadence.
+
+**Investigation and cause:** Once-per-frame progress observations missed the mechanism's braking apex. Monotone endpoint partition tests did not exercise that missing path distance.
+
+**Correction and check:** The authority reports actual fixed-step travel through an optional fifth callback. Printer-only wiring forwards it to paper separately from setters, restore and fitting. The permanent paper gate compares real factory states, events, 170 changed substeps and emitted buffers under both partitions, executes the old sampled-path RED and restores GREEN. Immediate/normal endpoints, cancellation, blocked travel, restore/fitting exclusion and same-progress redraw are covered. An actual Git-base probe separately preserves bounded callback-omitted controller state/event/apply/history parity. Real paused keyboard reversal is a native input witness; exact partition equality remains the CPU proof.
+
+## Task cleanup falsely attributed five pre-existing process identities
+
+**Observed symptom:** A timed-out review wrapper attributed five pre-existing process identities born before its task root to its process tree. The receipt records two denied stops, naming `_isA0D9` and `setup64`; the other three termination outcomes are unknown.
+
+**Investigation and cause:** The acquisition rule compared UTC child wall ticks with a parent string converted to local DateTime and trusted cached ancestry when the live parent was absent. One alleged child predated its alleged parent by over three hours. Stored receipt absence cannot distinguish natural exit from an erroneous successful stop.
+
+**Correction and check:** Shared pure JavaScript and PowerShell predicates require a live matching parent, exact birth identity at 100 ns precision, UTC ordering and the captured task-root lower bound. `node scripts/check-process-ownership.mjs` runs fifteen fixtures through both actual consumers and ten executed/restored mutations covering timezone, missing/reused parent, root bound and truncated precision. These predicates perform no process operations. Fresh wrappers retain and stop only their exact observed identities; historical missing observations remain unavailable, not retrospectively certified by this repair.
+
+## Printer tube ends were solid
+
+**Reported symptom:** On 2026-09-30 the user marked the top coupling of the looping blue tube and asked for a hollow, usable downward slide.
+
+**Investigation and cause:** Solid cylinders closed the tube ends, and the original duct supplied an exterior silhouette without an independently checked inner route. A matching outline did not establish a usable bore or supported entry.
+
+**Correction and check:** Shared `printer-travel.ts` generates closed inner/outer walls, annular couplings, supported roof-9 and floor-5 mouths, and continuous downhill seat frames. `npm run check:printer-parts` measures actual emitted wall volume/manifold edges, 150 radius-.60 bore probes and 401 seat contacts. Restoring an actual solid top cap executes RED; restoring the open annulus executes GREEN. The mandatory transit check separately samples actual seated bodies and wall contact. Native entry/exit views establish readability; these finite samples do not certify every possible body trajectory.
+
+## Front and right printer decks met at an awkward gap
+
+**Reported symptom:** The user marked the coral front/right balcony junction immediately above the lower external flight.
+
+**Investigation and cause:** Independently built front and side slabs, fascia and guards ended at different extents. Connected route centerlines did not establish a joined visible corner.
+
+**Correction and check:** Each affected deck now has a coherent joined outline, fascia and guard corner without coplanar overlap. Actual floor/fascia planes and .025-spaced supported route footprints are checked by `npm run check:printer-parts`. Removing the emitted bridge corner executes RED and restoration executes GREEN. The coordinator accepted the rendered junction in the fixed overview and close view; source connectivity alone remains insufficient visual evidence.
+
+## Printer walkers never used the external stairs
+
+**Reported symptom:** The user asked for actual resident traffic on the visible stairs, including travel between floors and through the tube.
+
+**Investigation and cause:** All eight original walker loops retained a fixed floor. Valid stationary feet and clear stair meshes did not produce inter-floor travel.
+
+**Correction and check:** Stable IDs 0/2/4 follow a shared 233.703-second closed course: both external flights upward, core stairs to the roof, supported seated tube descent, and the lower external flight downward. The aggregate `npm run check:printer-life` must execute both retained routine/station checks and `check-printer-transit.mjs`. Assembled report 49DCD11D samples 10,167 poses for all three sizes, visits every required external/core tread and checks 759,648 sole vertices. Actual fixed-floor, boundary-teleport, omitted/misclassified core, blocked-tread and blocked-tube controls reject and restore. Prepared poses are supplemented by ordinary-running native observations; neither is an unlimited continuous-sweep claim.
+
+## Printed paper only shifted as one static ribbon
+
+**Reported symptom:** Marker 4 asked for gradual printing, a falling ground stack and continuous replacement by another page.
+
+**Investigation and cause:** Clicking print translated the entire original ribbon by .15 along Z. It had no feed, release, fall, page replacement or bounded stack lifecycle.
+
+**Correction and check:** The owner-authored `printer-paper.ts` uses retained printer time and actual manual mechanism travel from the existing print control. Actual paper and diagrams advance together; the falling page retains its length, and eight reusable stack layers bound resources. `npm run check:printer-paper` checks actual triangles, outlet growth, release, settling, next-page reset, sheet/print contact and 101-cycle buffer/resource identity. Seven original static/no-release/no-fall/no-reset/fixed-print/unsupported/missing-support controls execute RED and restore GREEN. Final parts proof covers 12 actual moving-paper phases against fixed world geometry; the transit proof conservatively excludes all 26 anatomical and held-object bounds from the independently measured full-phase paper envelope over two courses. Actual body intrusion into that envelope rejects and restores. Native pause/manual/reset/scene-switch and ordinary-running observations cover the real input path separately.
+
+## A clear tube bore still collided with the roof gardener
+
+**Reported symptom:** Functional review found the relocated top coupling intersecting the gardener beside its pot.
+
+**Investigation and cause:** Moving the mouth forward cleared the open pot from the bore, but the coupling's outside wall entered fixed resident 25's pelvis and upper arm. Bore-only clearance omitted people beside the shell.
+
+**Correction and check:** The upper throat moved to X=-3.60 with a supported roof tongue, preserving the occupied station and looping silhouette. Actual old-geometry report D77D2EB1 records thirteen collision classes at 25 activity poses; repaired gardener positives and the final mandatory transit sweep inspect emitted body/obstacle geometry with unchanged predicates. The actual blocked-tube control remains RED/restored. Native mouth/gardener views are accepted. This bound is sampled stationary-body clearance, not a claim that checking the inner bore also checks the exterior.
+
+## Stair travel looked like a squat shuffle
+
+**Reported symptom:** The first native stair captures showed a low crouch instead of natural stair ascent and descent.
+
+**Investigation and cause:** A deeply lowered hip made an initial point-anchored step reachable but shortened the visible stance. Later full-body sweeps also exposed a descending cuff and the largest resident's lowering toe entering the next tread; planted points alone omitted the whole shoe and trouser envelope.
+
+**Correction and check:** The stair pose preserves ordinary hip height at joins and uses a modest .180 anatomy-unit hip in the flight, with explicit lift/traverse/lower feet and one shared uphill placement adjustment for all sizes. The full actual-body check rejects both retained cuff/toe RED witnesses without relaxing contact or leg-length limits. The source-bound manual native gate rejected the original squat cohort and accepted final lower ascent, upper ascent and lower descent in report B7CB6723. Appearance remains a native-review requirement; foot-support numbers alone do not certify natural posture.
+
+## A collision-free seated traveler could float
+
+**Reported symptom:** Preparatory review found that entry, slide and stand could omit positive support while remaining inside a clear bore.
+
+**Investigation and cause:** Sole checks intentionally excluded seated phases, but no independent emitted pelvis-to-wall predicate replaced them. During the initial transition both feet could lift before the pelvis reached the wall.
+
+**Correction and check:** Entry and exit preserve one supported foot until actual pelvis contact, and the slide uses actual wall support. The mandatory transit gate requires sole or pelvis support throughout those phases. A raised actual rider is first proved clear of world solids, then rejected for missing support by the same predicate; regeneration restores GREEN. Final assembled coverage retains the .012 sampled contact-gap bound rather than silently broadening it.
+
+## The lower slide exit exposed an unguarded drop
+
+**Reported symptom:** Functional review found an accessible floor-5 edge outside the pipe enclosure.
+
+**Investigation and cause:** Just beyond the actual deck front at Z=1.515, the next emitted support was Y=3.47, a 1.53-unit drop. The pipe and housing already enclosed the other edges, so blanket rails were unnecessary.
+
+**Correction and check:** A short .34-high front/right L guard encloses only the exposed edges and preserves the service entrance. `npm run check:printer-parts` measures eight front and twenty right posts with maximum gaps .0467143/.0528421. Removing the whole front guard or a middle post executes RED; restoring each executes GREEN. The transit gate checks actual bodies against the guards, and final exit/standing native views show the usable deck and enclosure.
+
+## Lower-fold diagrams bled through opaque upper paper
+
+**Reported symptom:** Native t4.8/5.65/6.1/8.5 and t16 captures showed overlapping diagrams and a muddled ground stack.
+
+**Investigation and cause:** Ink already had .5 mm physical separation from its sheet, but an additional negative polygon offset pulled lower-fold ink through the upper opaque surface. Geometry and contact checks alone missed this depth interaction.
+
+**Correction and check:** The paper owner removed only that extra ink bias. Actual geometry, snapshots, UVs and submitted ranges remain identical at the twelve compared phase times. `npm run check:printer-paper` projects actual triangles with the declared depth model; restoring the old bias and removing top ink each execute RED, then restoration executes GREEN. The CPU proof explicitly leaves close depth ties to native review. The coordinator inspected all final original PNGs in B7CB6723 and accepted the clean top print, including the full stack.
+
+## Resident pair checks omitted held books and cups
+
+**Reported symptom:** Independent review found that anatomy-only comparisons could accept a held prop crossing a traveler.
+
+**Investigation and cause:** The two-course pair population omitted emitted held-object references, even though those objects extend beyond their owner's body.
+
+**Correction and check:** Pair-only rows now include actual anatomical and held references while sole, pelvis and join predicates retain body-only populations. The gate requires all three travelers against all 23 other residents and records 336,672 comparisons. Moving only a stationary book into an actual traveler while their anatomical bodies remain clear executes RED through the same pair validator; regeneration restores GREEN. Writing pens and the barista towel remain separate activity tools under the legacy contact check, so this pair proof does not claim every activity-tool pairing.
+
 ## Printer people appeared in slow motion
 
 **Reported symptom:** On 2026-09-29 the user saw slow-motion residents in the printer preview.

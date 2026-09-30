@@ -27,6 +27,7 @@ export function createMechanismState(
   apply: (id: string, progress: number) => void,
   canTravel: (id: string, from: number, to: number) => boolean,
   onEvent?: (event: MechanismEvent) => void,
+  onTravel?: (id: string, from: number, to: number) => void,
 ) {
   const states = ids.map(id => ({ id, progress: 0, velocity: 0, target: 0, phase: 'closed' as MechanismPhase }));
   const events: MechanismEvent[] = [];
@@ -39,9 +40,11 @@ export function createMechanismState(
     onEvent?.({ ...event });
   }
   function resolve(state: MechanismState) {
+    const previous = state.progress;
     state.progress = state.target;
     state.velocity = 0;
     state.phase = state.target === 0 ? 'closed' : 'open';
+    if (state.progress !== previous) onTravel?.(state.id, previous, state.progress);
     apply(state.id, state.progress);
     emit(state, state.target === 0 ? 'closed' : 'opened');
   }
@@ -88,9 +91,11 @@ export function createMechanismState(
         const next = state.progress + state.velocity * STEP;
         if ((state.target - next) * distance <= 0) resolve(state);
         else {
+          const previous = state.progress;
           state.progress = Math.max(0, Math.min(1, next));
           if (state.progress === 0 || state.progress === 1) state.velocity = 0;
           state.phase = state.target > state.progress ? 'opening' : 'closing';
+          if (state.progress !== previous) onTravel?.(state.id, previous, state.progress);
         }
       });
     }

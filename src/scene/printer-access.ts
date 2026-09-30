@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { batchPrinter, printerBox, printerRod } from './printer-geometry';
+import { printerCoreFlights } from './printer-travel';
 
 type AccessMaterials = { coral: THREE.Material; metal: THREE.Material; cream: THREE.Material };
 type Point = [number, number, number];
@@ -8,10 +9,8 @@ type Point = [number, number, number];
 export function createPrinterAccess(materials: AccessMaterials): THREE.Group {
   const group = new THREE.Group();
   group.name = 'printer-service-access';
-  const rear = -1.93, front = -.42, run = front - rear;
-  const lanes = [-2.58, -1.59];
-  const width = .56, railOffset = .27, railHeight = .34;
-  let sequence = 0;
+  const rear = -1.93, front = -.42;
+  const railOffset = .27, railHeight = .34;
 
   function block(name: string, material: THREE.Material, size: Point, at: Point) {
     const mesh = printerBox(group, material, size, at, 0); mesh.name = name; return mesh;
@@ -45,7 +44,9 @@ export function createPrinterAccess(materials: AccessMaterials): THREE.Group {
     }
     const low = atFront ? front : -2.27, high = atFront ? .31 : rear;
     block(label, materials.coral, [1.70, .045, high - low], [-2.10, y - .0225, (low + high) / 2]);
-    guard(`${label}-left`, y, [-2.92, low + .025], [-2.92, high - .025]);
+    // Floor5 has a supported west passage from the hollow slide, matching the existing east exit.
+    const slideExit = atFront && Math.abs(y - 5) < 1e-8;
+    guard(`${label}-left`, y, [-2.92, low + .025], [-2.92, slideExit ? .025 : high - .025]);
     const exit = atFront && [3.5, 5, 6.5].some(floor => Math.abs(y - floor) < 1e-8);
     guard(`${label}-right`, y, [-1.28, low + .025], [-1.28, exit ? .025 : high - .025]);
     if (atFront) guard(`${label}-front`, y, [-2.92, .285], [-1.28, .285]);
@@ -55,10 +56,8 @@ export function createPrinterAccess(materials: AccessMaterials): THREE.Group {
     } else guard(`${label}-back`, y, [-2.92, -2.245], [-1.28, -2.245]);
   }
 
-  function coreFlight(bottom: number, top: number, steps: number) {
-    const index = sequence++, x = lanes[index % 2], towardFront = index % 2 === 0;
-    const from = towardFront ? rear : front, to = towardFront ? front : rear;
-    const rise = (top - bottom) / steps, going = run / steps;
+  function coreFlight(definition: typeof printerCoreFlights[number]) {
+    const { index, bottom, top, count: steps, lane: x, from, to, rise, going, width } = definition, towardFront = index % 2 === 0;
     const direction = towardFront ? 1 : -1;
     for (let step = 1; step <= steps; step++) {
       const y = bottom + rise * step, z = from + direction * going * (step - .5);
@@ -82,11 +81,8 @@ export function createPrinterAccess(materials: AccessMaterials): THREE.Group {
   }
 
   landing(.10, false, true);
-  let bottom = .10;
-  for (let flight = 1; flight <= 5; flight++) { const top = .10 + flight * .68; coreFlight(bottom, top, 11); bottom = top; }
-  for (const top of [4.25, 5.0, 5.75, 6.5]) { coreFlight(bottom, top, 12); bottom = top; }
   // This distribution keeps the last rising adult below the slab until the full body enters its hatch.
-  for (const [top, steps] of [[7.245, 12], [7.99, 12], [9.0, 16]]) { coreFlight(bottom, top, steps); bottom = top; }
+  for (const definition of printerCoreFlights) coreFlight(definition);
 
   const shopX = 4.55, shopFrom = -3.50, shopTo = -.74, shopSteps = 27;
   const shopRise = 1.75 / shopSteps, shopGoing = (shopTo - shopFrom) / shopSteps;

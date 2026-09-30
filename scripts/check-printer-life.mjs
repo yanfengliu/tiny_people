@@ -1,7 +1,8 @@
 // harness: CPU inspection of the emitted printer residents and the actual fixed world triangles.
-// Bounds: 26 residents over 180 seconds at .5-second intervals; all shoe vertices, six fixed supports,
+// Bounds: 26 residents over 180 seconds at .5-second intervals; routine shoe vertices, six fixed supports,
 // every activity, held-object samples, 24 seconds of writing at 30 Hz and walking transitions at 60 Hz.
 // This verifies finite geometry, floor contact and bounded transitions; it does not measure GPU work.
+// IDs0/2/4 now make inter-floor trips; check-printer-transit.mjs owns their treads/tube and continuity.
 // Garden checks cover two sparse-ray projections and six nearest-visible triangle crops,
 // with an exact historical green-crown restoration; these do not establish native tree resemblance.
 import assert from 'node:assert/strict';
@@ -18,7 +19,8 @@ const acceptedFloors = [.10, 1.85, 3.5, 5.0, 6.5, 9.0];
 const expectedFloors = [3.5, 3.5, 5, 5, 6.5, 6.5, .10, .10, 3.5, 3.5, 3.5, 3.5, 5, 6.5, 5, 5, 6.5, 6.5, 6.5, 6.5, .10, 1.85, 9, 9, 9, 9];
 const seatedStations = new Map([[8, [.80, 1.05]], [9, [2.55, .85]], [12, [.80, 1.05]], [16, [.80, 1.05]], [17, [2.55, .85]], [20, [-3.75, 3.05]], [22, [-2.70, 1.55]], [23, [-1.55, 1.55]]]);
 // Measured route arc lengths and desired cadence are independent fixtures, not imports from poses.
-const routePace = [{ halfLength: 2.636981656137316, travel: 7.974949044825879 }, { halfLength: 1.597793273629283, travel: 5.088314648970231 }];
+const routePace = [{ halfLength: 2.155263581481596, travel: 6.636843281893323 }, { halfLength: 1.597793273629283, travel: 5.088314648970231 }];
+const transitIds = [0, 2, 4];
 let vite, life, world;
 const supportMeshes = new Map();
 const controlGroups = [];
@@ -236,7 +238,7 @@ function activityContactCycles() {
   for (let tick = 0; tick <= 24 * 30; tick++) {
     life.update(tick / 30); life.group.updateMatrixWorld(true); writingContactChecks();
   }
-  const nearest = new Map([0, 2, 4, 6, 22, 23].map(id => [id, Infinity]));
+  const nearest = new Map([6, 22, 23].map(id => [id, Infinity]));
   for (let tick = 0; tick <= 68 * 5; tick++) {
     life.update(tick / 5); life.group.updateMatrixWorld(true);
     const anatomy = life.group.getObjectByName('tiny-residents');
@@ -253,7 +255,7 @@ function activityContactCycles() {
 
 function seatsTouchActualGeometry() {
   const clothes = life.group.getObjectByName('resident-clothes');
-  for (const actor of life.snapshot().residents.filter(actor => actor.seated)) {
+  for (const actor of life.snapshot().residents.filter(actor => actor.seated && !transitIds.includes(actor.id))) {
     const [x, z] = seatedStations.get(actor.id) ?? [];
     assert.ok(x !== undefined && Math.abs(actor.position[0] - x) < 1e-8 && Math.abs(actor.position[2] - z) < 1e-8, `Resident ${actor.id} must sit at its independent construction station.`);
     const pelvis = vertices(clothes, actor.id * 2);
@@ -706,9 +708,13 @@ function solesOnActualFloors() {
   const shoes = life.group.getObjectByName('resident-shoes');
   for (let resident = 0; resident < snapshot.residents.length; resident++) {
     const actor = snapshot.residents[resident];
+    if (transitIds.includes(actor.id)) {
+      assert.ok(actor.transit && ['walk', 'turn', 'stairs', 'enter-slide', 'slide', 'stand'].includes(actor.transit.mode), `Traveler ${actor.id} requires an explicit supported transit state; its actual travel geometry is checked separately.`);
+      continue;
+    }
     assert.equal(actor.floor, expectedFloors[actor.id], `Resident ${actor.id} must retain its independently specified fixed support.`);
     if (actor.id < 8) {
-      const bounds = actor.id < 6 ? [.55, 3.05, 2.88, 3.12] : [3.85, 5.10, 3.63, 4.10];
+      const bounds = actor.id < 6 ? [.65, 2.75, 2.79, 2.91] : [3.85, 5.10, 3.63, 4.10];
       assert.ok(actor.position[0] >= bounds[0] - 1e-8 && actor.position[0] <= bounds[1] + 1e-8 && actor.position[2] >= bounds[2] - 1e-8 && actor.position[2] <= bounds[3] + 1e-8, `Walker ${actor.id} leaves its independent gallery/street center bounds.`);
     }
     const contacts = [];
@@ -738,7 +744,7 @@ function solesOnActualFloors() {
 function emittedFootPoints() {
   const mesh = life.group.getObjectByName('resident-shoes');
   life.group.updateMatrixWorld(true);
-  return Array.from({ length: mesh.count }, (_, index) => vertices(mesh, index)).flat();
+  return Array.from({ length: mesh.count }, (_, index) => transitIds.includes(Math.floor(index / 2)) ? [] : vertices(mesh, index)).flat();
 }
 
 function greatestTransitionStep() {
@@ -763,6 +769,7 @@ function greatestTransitionStep() {
 function naturalPaceChecks(subject) {
   const rates = [];
   for (let id = 0; id < 8; id++) {
+    if (transitIds.includes(id)) continue;
     const level = Math.floor(id / 2), lane = id % 2, fixture = routePace[level < 3 ? 0 : 1];
     const half = fixture.travel + 8, at = half * 4 - level * 7.1 - lane * half + 1;
     const pelvis = subject.group.getObjectByName('resident-clothes');
@@ -1038,7 +1045,7 @@ try {
     }
     if (time % 4 === 0) { handsTouchProps(); writingContactChecks(); seatsTouchActualGeometry(); counterContactChecks(); }
   }
-  assert.deepEqual([...activities].sort(), ['coffee', 'read', 'talk', 'walk', 'water', 'work']);
+  assert.deepEqual([...activities].sort(), ['coffee', 'read', 'slide', 'talk', 'walk', 'water', 'work']);
   assert.equal(moving.size, 8, 'Each of the six gallery and two street residents must travel through its daily route.');
   assert.ok(minimumGardenOverStreet - greatestStreetHead > .8, `Actual street bodies have only ${minimumGardenOverStreet - greatestStreetHead} units of overhead garden clearance; retain .8.`);
   report.streetOverheadClearance = { lowestGardenVertex: minimumGardenOverStreet, highestEmittedHairVertex: greatestStreetHead, clearance: minimumGardenOverStreet - greatestStreetHead };
@@ -1063,11 +1070,11 @@ try {
   // Mutate emitted shoe transforms, rather than a duplicate expected-height fixture.
   life.update(0);
   const shoes = life.group.getObjectByName('resident-shoes');
-  for (const index of [0, 1]) {
+  for (const index of [6 * 2, 6 * 2 + 1]) {
     shoes.getMatrixAt(index, matrix); matrix.elements[13] += .08; shoes.setMatrixAt(index, matrix);
   }
   assert.throws(solesOnActualFloors, /clips or floats|neither foot planted/);
-  report.controls.push('raising both emitted shoes is rejected against the actual floor triangles');
+  report.controls.push('raising both emitted routine walker6 shoes is rejected against the actual floor triangles');
   life.update(0);
   solesOnActualFloors();
 
