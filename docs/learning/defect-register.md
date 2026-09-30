@@ -1,5 +1,29 @@
 # Defect register
 
+## Printer people appeared in slow motion
+
+**Reported symptom:** On 2026-09-29 the user saw slow-motion residents in the printer preview.
+
+**Investigation and cause:** Authored 26-second travel with a 1.6-second ramp limited gallery/street speeds to .108073/.065483 units per second; the old .22-unit gait took at least 2.04/3.36 seconds per full cycle. Native clock observation excluded a separate clock slowdown within its sampled window.
+
+**Correction and check:** Printer life 79094C1D uses .36 units per second, a .65-second ramp and .40-unit gait, approximately 1.8 steps per second, with continuous purposeful dwell. Actual emitted pelvis/shoe measurements in life checker 421AE5DA/report E0D4000A confirm all eight walkers at .35999985–.35999994 and a 1.116667-second gait cycle. Restoring the actual old travel/ramp/gait source executes a red control. The final 17-group native report 026BD252 independently sums 760 contiguous frames: 4.52 life seconds equal 4.52 clamped seconds. No global clock multiplier was added; native cadence is diagnostic, not GPU-completion evidence. Final floral bytes receive their own source-bound checks.
+
+## Printer ground and background carried an excessive shadow
+
+**Reported symptom:** On 2026-09-29 the user clarified that the weird pink shade referred to the ground/background and its shadow.
+
+**Investigation and cause:** The lit ground changed the reference pink, and the low directional light cast a long dark silhouette far beyond the machine. Correct source color alone did not make its displayed pixels match the backdrop.
+
+**Correction and check:** Main DA132D7C presents flat reference pink with a separate neutral low-opacity shadow and raises the printer-only key light, restoring controller lighting on return. Matched native report DBD78005 passes fixed gutter samples at RGB 255/155/171; restoring the actual old light height in report 641B2255 reproduces the distant patch at RGB 235/145/160 and fails. Source-bound 17-pose projection report 3937EDD6 verifies caster/frustum coverage and shorter projection. The coordinator inspected the old default plus current open, closed and back images individually; a short nearby cast shadow remains deliberate. These sampled views do not certify every orbit or graphics device.
+
+## W/S ignored the camera's vertical facing component
+
+**Requested change:** On 2026-09-29 the user required W to move exactly forward along the facing direction and S backward.
+
+**Investigation and cause:** The earlier camera projection flattened Y to zero. Pitched or nearly vertical views therefore moved horizontally instead of along the full view direction.
+
+**Correction and check:** Camera and target translate together along their normalized full difference vector; A/D retains a horizontal side direction. Eight actual held-key trials across both scenes and pitched/near-vertical W/S views verify direction, equal camera/target movement, retained distance, release and editable/modifier exclusion. Restoring the executed old XZ projection fails the first pitched W trial. Full report 026BD252 repeats the positive trials on main DA132D7C; historical horizontal-pan requirements below are superseded for W/S.
+
 ## Screen-reader instructions flashed during page startup
 
 **Reported symptom:** On 2026-09-29 the user saw instruction text when the controller page loaded, then watched it disappear as the model appeared.

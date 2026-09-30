@@ -10,6 +10,14 @@ Garden 7F remains rejected: oversized dark green crown leaves hide the fine pink
 
 final result: blocked
 
+## E6 branch-clump comparison, 2026-09-30
+
+Two separate native views bind garden E6FBDAB13637A3BC3C19C3BB50501A17E8AB00AA75DF7005C088D526DF5B7B90 in report 9C663877A6CD942FF78911A0EA7205A97F6A4D0B482526497C19E5EE7C8D637A. Default image 50244722A84D63FEE09362C283D2907CC4937B47B254D8CF8FF063401736B6D8 and garden E4DD5F3ABB6B2D31B8E42C79EDCDA60E1F5EBE598BB2CCB737AB571E749525BE were opened individually by the coordinator and integration reviewer. Pink dominance and the outer lobes improve, but each lobe retains a regular dotted shell. The left bush changes from sparse stem to regular ovoid. Both reviewers reject that morphology. Browser 44440 and its five recorded IDs closed with empty cleanup arrays.
+
+The world worker's separate read-only visual/source diagnosis confirms that Fibonacci-distributed blooms occupy clump radii .97..1.02 while supporting spokes end at .80.. .85. That outer-skin construction explains the detached regular appearance; varying its radius is another attempt in the same failed family. The life worker is switching to uneven forked branches with flowers attached along side twigs at varied depths. Coverage, dominance and triangle counts still have bounded checks, but cannot substitute for native reference judgment or actual attachment.
+
+final result: blocked
+
 ## Connected candidate comparison, 2026-09-29
 
 Source-bound output/camera-connected/report.json SHA-256 45295174797707C135152DF0835B102348FBD7A222EBB604581310150204FFE7 records 23 native captures: fourteen fixed views, four seeded real drags, two seeded real wheels and three close-ups after real life resume/pause. The coordinator inspected all 23 individual images at native resolution, including the three portrait endpoints and all running close-ups. Sources are main 02FF0B7B, world 80345551, helper 90D18F4A, access 2CE505E1, garden C9C67D5A, life 79094C1D and resident profile CFC24808. Browser 47900 and its five recorded process IDs closed, with no leftovers or errors. This is an intermediate cohort, not final integrated acceptance.

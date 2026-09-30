@@ -1,0 +1,9 @@
+# Flower morphology preview review
+
+2026-09-30 independent read-only supplement by the scene-integration worker, excluding my own main/input/access implementation. The accepted historical round2 review remains unchanged. This supplement records a subsequent rejected two-view candidate, not final flora acceptance.
+
+I opened both E6 PNGs individually at native resolution alongside the original printer reference `5D7BABBB8495300E98D29F2B95AC441D84FD3C6B2AE4DBE532EE84C0A9987440`. Pink color is improved compared with the green-dominated 7F cohort and the silhouette has several lobes, but each lobe still has a nearly uniform dense dot-shell surface. The resulting crown reads as assembled round masses rather than the reference's uneven blossom clusters with branch-led breaks. The left shrub reads as a regular ovoid shell. I independently agree with the coordinator's morphology rejection. Drawer movement remains partly hidden by the front tree in the default view; other orbit views expose its face and handle.
+
+This evidence binds garden `E6FBDAB13637A3BC3C19C3BB50501A17E8AB00AA75DF7005C088D526DF5B7B90`, report `output/flowers-e6/report.json` `9C663877A6CD942FF78911A0EA7205A97F6A4D0B482526497C19E5EE7C8D637A`, default PNG `50244722A84D63FEE09362C283D2907CC4937B47B254D8CF8FF063401736B6D8` and garden PNG `E4DD5F3ABB6B2D31B8E42C79EDCDA60E1F5EBE598BB2CCB737AB571E749525BE`. Its report also pins unchanged world E810, life790, residents CFC and main DA. Browser 44440 and children 26564,29936,30528,54580 closed with empty remaining/error arrays. This review launched no browser or server.
+
+No E6 geometry, performance or full 17 acceptance follows from these two views. A later candidate needs its own focused native comparison and affected geometry/contact/resource evidence; original 7F full17 and round2 results retain their existing bounds.
