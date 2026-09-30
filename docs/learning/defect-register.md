@@ -1,12 +1,28 @@
 # Defect register
 
+## Screen-reader instructions flashed during page startup
+
+**Reported symptom:** On 2026-09-29 the user saw instruction text when the controller page loaded, then watched it disappear as the model appeared.
+
+**Investigation and cause:** HTML contained the accessible paragraph immediately, but its clipping CSS arrived through the application JavaScript import. Delaying the application module exposed the full paragraph before styles arrived.
+
+**Correction and check:** The HTML head loads the stylesheet before rendering; the duplicate JavaScript style import is removed. The native scene startup subgroup delays actual scripts in development and production, verifies clipped text and a visible dropdown before and after the canvas appears, and retains the accessibility instructions. Removing the executed stylesheet link reproduces the flash and fails. The final 17-group report 026BD252 passes this subgroup on main DA132D7C, with no owned browser leftovers; detailed source/report bounds are in work 5's scene-integration verification.
+
+## Printer gallery floors flickered and corners lacked a supported connection
+
+**Reported symptom:** On 2026-09-29 the user marked a disconnected lower front/right sidewalk corner. Native review independently found pink/cyan floor and fascia interference. The user's ambiguous pink marks were later clarified as ground/background and its shadow; that environment complaint is recorded separately.
+
+**Investigation and cause:** Native close-ups show coplanar opaque wood/structural tops and overlapping gallery bridge plates. Source inspection found side galleries ending at Z2.595 while the front gallery begins at Z2.67; an overlapping corner patch did not establish a coherent floor and rail connection. Separating top surfaces exposed a second class: the hidden structural slab and gallery still shared an outward vertical face at Z3.35, causing red/cyan interference on the fascia. A corridor assumed wood began at X.18, but the emitted edge was X.265, leaving an .085-unit gap.
+
+**Correction and check:** E81067DD joins real wood/gallery edges at unchanged floor heights and separates structural tops and vertical fascias. Checker 1E8B4FDD/report 3AEE6EF2 discovers 808 bounded actual slab faces on all three axes and verifies supported body/prop paths at intervals at most .035 units. Executed controls restore wood/top overlap, cyan/side-gallery overlap, vertical fascia coincidence and a zero-rise tread; all reject. The coordinator inspected all 23 source-bound camera-delivery images, including clean room, roof, stair and gallery close-ups. Detailed bounds remain in work 5's world-verification.md; this is not a general coplanarity certificate for every mesh.
+
 ## Printer stairs differed from the reference and lacked a credible walking route
 
 **Reported symptom:** On 2026-09-29 the user asked whether the stairs match the reference and whether they are safe and make sense. The native third-candidate stairs crossed the front windows instead of following attached corner landings around the right wing.
 
 **Investigation and cause:** The drafted flights rose 1.5 units over a 1.69-unit run, approximately 41.6 degrees. Twelve intervals produced .125-unit risers, roughly one fifth of an adult resident's height. Guard posts every two treads left .281-unit horizontal gaps. Feature-presence checks established stairs existed but did not establish usable floor entrances, proportionate steps or protected edges.
 
-**Correction and check:** Open in work 5. The world worker owns connected zigzag/side flights, floor-entry gaps, step proportions and continuous guarded landings. Acceptance requires measured actual emitted geometry and broken-connection, missing-guard and oversized-riser negative controls, followed by native reference comparison. This is miniature-world plausibility and geometry coverage, not a building-code certification.
+**Correction and check:** E81067DD uses 25 true .060-unit risers per attached flight, .108 going, .66 width and 29.055-degree pitch, with adjacent lanes and guarded supported turns. The final 1E8B checker/report 3AEE6EF2 tests 304,512 actual full-shoe samples, 66 guarded service edges and 2,035 actual body/prop/support poses. Restored thick treads, shared-lane head strikes, short roof hatch, missing guards, oversized risers and broken landings reject. Native reference/stair close-ups confirm coherent connections within captured views. This is miniature-world plausibility, not building-code certification or animated stair climbing.
 
 ## Printer draft matched colors but missed the reference architecture
 
