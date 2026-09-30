@@ -280,3 +280,10 @@
 
 **Correction and check:** Sized both shape fixtures to .8 while leaving the separate oversized-fold stimulus unchanged. `npm run check:printer-life` keeps specific shape/scale error assertions; executed actual geometry shows fine sphere/fold .618876-head widths pass scale and fail shape, while the oversized fold remains 2.251713 heads and fails scale. Restored production positives pass, and the final whole gate executes all 28 controls. The failed BA report and exact two-line repair review retain provenance; no regex or threshold was loosened.
 
+## Git converted a byte-pinned historical control
+
+**Reported symptom:** The first main-checkout printer-life gate failed the exact 7F fixture hash after the same gate had passed in the integration worktree.
+
+**Investigation and cause:** Canonical Git and inspected worktree bytes were SHA 7FB, 17981 bytes with 249 LF lines. Main's `core.autocrlf=true` checkout converted all 249 endings to CRLF, producing SHA F35 and 18230 bytes. The historical control was a promoted regression input, but no attribute protected its inspected bytes.
+
+**Correction and check:** A root `.gitattributes` rule marks only `scripts/fixtures/printer-garden-7f.ts -text`; main restores the exact inspected bytes. `npm run check:printer-life` keeps the strict original hash and executed historical-green-crown rejection. The actual isolated Git add/commit/clone/checkout proof executes that unchanged byte assertion with autocrlf true and false: both protected checkouts preserve 7FB, while removing the attribute under autocrlf=true reproduces the exact F35 main failure. Canonical blobs stay 7FB in every case. The byte guard remains the durable retiring gate; the coordinator must record the full main rerun after this scoped repair.
