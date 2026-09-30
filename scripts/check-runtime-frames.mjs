@@ -1,5 +1,5 @@
 // harness: Strict unique source boundaries extract actual main.ts animate delta/life-time/pan statements and whole translateCamera; Node strips types and real Three vector math executes without startup/rendering.
-// Bounds: explicit native timestamps at 10/20/60/120/240 Hz, changing cadence, cardinal/diagonal/opposed keys, pause/test-freeze and first-frame reset. This proves the extracted integration math, not browser input, rendering work or observed display cadence.
+// Bounds: both scene clocks with explicit native timestamps at 10/20/60/120/240 Hz, changing cadence, cardinal/diagonal/opposed keys, pause/test-freeze, first-frame reset and a scene switch. This proves the extracted integration math, not browser input, rendering work or observed display cadence.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -11,7 +11,7 @@ const sourcePath = 'src/main.ts', selfPath = 'scripts/check-runtime-frames.mjs';
 const output = 'output/phase10/runtime-frames', runDirectory = `${output}/runs/${new Date().toISOString().replace(/[:.]/g, '-')}`;
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const digests = async () => Object.fromEntries(await Promise.all([sourcePath, selfPath].map(async path => [path, hash(await readFile(path))])));
-const report = { harness: `node ${selfPath}`, runDirectory, pass: false, cases: [], controls: [], browsersLaunched: 0, serversLaunched: 0 };
+const report = { harness: `node ${selfPath}`, runDirectory, pass: false, activeScenes: ['controller', 'printer'], cases: [], controls: [], browsersLaunched: 0, serversLaunched: 0 };
 await mkdir(runDirectory, { recursive: true });
 
 function uniqueIndex(source, token) {
@@ -37,7 +37,7 @@ function extract(source) {
   const coreStart = animate.start + coreOffset, coreEnd = animate.start + panOffset + '    translateCamera(delta);'.length;
   const core = source.slice(coreStart, coreEnd), lines = core.split(/\r?\n/).map(line => line.trim());
   assert.equal(lines.length, 4, 'Actual contiguous integration must be delta, life-time condition, previous timestamp assignment and pan call.');
-  assert.equal(lines[1], 'if (!testFrozen && !paused()) worldTime += delta;');
+  assert.equal(lines[1], "if (!testFrozen && !paused()) { if (activeScene === 'controller') worldTime += delta; else printerTime += delta; }");
   assert.equal(lines[2], 'previousFrame = milliseconds;');
   assert.equal(lines[3], 'translateCamera(delta);');
   const matched = /^const delta = (previousFrame === undefined \? 0 : )THREE\.MathUtils\.clamp\((.+), 0, \.05\);$/.exec(lines[0]);
@@ -50,16 +50,18 @@ function extract(source) {
     return translate.text + '\nfunction advanceFrame(milliseconds: number) {\n' + guardText + '\n' + actualCore + '\n}\nglobalThis.advanceFrame = advanceFrame;\n';
   };
   const metadata = (start, end) => ({ start, end, firstLine: source.slice(0, start).split(/\r?\n/).length, sha256: hash(source.slice(start, end)) });
+  const facingAnchor = 'moveForward.subVectors(controls.target, camera.position).normalize();';
+  assert.equal(make().split(facingAnchor).length, 2, 'Old XZ mutation must match exactly one real facing statement.');
   return {
     boundaries: { method: 'strict unique source boundaries plus native type stripping', animate: metadata(animate.start, animate.end), translateCamera: metadata(translate.start, translate.end), guard: metadata(animate.start + guardOffset, animate.start + guardOffset + guardText.length), core: metadata(coreStart, coreEnd), initializer: metadata(coreStart + initializerOffset, coreStart + initializerOffset + initializer.length) },
-    actual: make(), fixed: make(matched[1] + '1 / 60'), unclamped: make(matched[1] + 'Math.max(0, ' + nativeExpression + ')')
+    actual: make(), fixed: make(matched[1] + '1 / 60'), unclamped: make(matched[1] + 'Math.max(0, ' + nativeExpression + ')'), oldXZ: make().replace(facingAnchor, 'moveForward.subVectors(controls.target, camera.position).setY(0).normalize();')
   };
 }
 function compile(source) { return stripTypeScriptTypes(source, { mode: 'strip' }); }
-const initialPosition = [8, 12, 18], initialTarget = [1, 1.1, -.5], initialTime = 7.125;
+const initialPosition = [8, 12, 18], initialTarget = [1, 1.1, -.5], initialTime = 7.125, initialPrinterTime = 11.375;
 function environment(executable, options = {}) {
   const camera = { position: new THREE.Vector3(...initialPosition) }, controls = { target: new THREE.Vector3(...initialTarget), enabled: options.enabled ?? true };
-  const state = { THREE, camera, controls, heldKeys: new Set(options.keys ?? ['w']), moveForward: new THREE.Vector3(), moveRight: new THREE.Vector3(), movement: new THREE.Vector3(), worldUp: new THREE.Vector3(0, 1, 0), disposed: false, suspended: false, contextLost: false, document: { hidden: false }, testFrozen: options.testFrozen ?? false, paused: () => options.paused ?? false, previousFrame: undefined, worldTime: initialTime, markExploring: () => {} };
+  const state = { THREE, camera, controls, heldKeys: new Set(options.keys ?? ['w']), moveForward: new THREE.Vector3(), moveRight: new THREE.Vector3(), movement: new THREE.Vector3(), worldUp: new THREE.Vector3(0, 1, 0), disposed: false, suspended: false, contextLost: false, document: { hidden: false }, testFrozen: options.testFrozen ?? false, paused: () => options.paused ?? false, previousFrame: undefined, activeScene: options.activeScene ?? 'controller', worldTime: initialTime, printerTime: initialPrinterTime, markExploring: () => {} };
   const context = createContext(state);
   runInContext(executable, context, { timeout: 1000 });
   return context;
@@ -77,35 +79,38 @@ function expectedMovement(keys, delta, enabled) {
   if (!enabled) return [0, 0, 0];
   const forward = Number(keys.includes('w')) - Number(keys.includes('s')), right = Number(keys.includes('d')) - Number(keys.includes('a'));
   if (!forward && !right) return [0, 0, 0];
-  const dx = initialTarget[0] - initialPosition[0], dz = initialTarget[2] - initialPosition[2], horizontalLength = Math.hypot(dx, dz);
-  const x = dx / horizontalLength * forward - dz / horizontalLength * right, z = dz / horizontalLength * forward + dx / horizontalLength * right;
-  const length = Math.hypot(x, z), distance = Math.hypot(...initialPosition.map((value, index) => value - initialTarget[index]));
+  const dx = initialTarget[0] - initialPosition[0], dy = initialTarget[1] - initialPosition[1], dz = initialTarget[2] - initialPosition[2], horizontalLength = Math.hypot(dx, dz);
+  const distance = Math.hypot(dx,dy,dz);
+  const x = dx / distance * forward - dz / horizontalLength * right, y = dy / distance * forward, z = dz / distance * forward + dx / horizontalLength * right;
+  const length = Math.hypot(x,y,z);
   const travel = distance * .22 * delta;
-  return [x / length * travel, 0, z / length * travel];
+  return [x / length * travel, y / length * travel, z / length * travel];
 }
 function trial(executable, fixture, options = {}) {
   const context = environment(executable, options), keys = options.keys ?? ['w'];
   const rows = [], violations = [];
-  let previous, life = initialTime, position = [...initialPosition], target = [...initialTarget];
+  let previous, activeScene = options.activeScene ?? 'controller', life = initialTime, printerLife = initialPrinterTime, position = [...initialPosition], target = [...initialTarget];
   function compare(label, actual, expected, index) {
     if ((!Number.isFinite(actual) || Math.abs(actual - expected) > 1e-9) && !violations.some(item => item.invariant === label)) violations.push({ invariant: label, frame: index, nativeTimestamp: fixture.timestamps[index], actual, expected });
   }
   for (let index = 0; index < fixture.timestamps.length; index++) {
     if (options.resetAt === index) { context.previousFrame = undefined; previous = undefined; }
+    if (options.switchAt === index) { activeScene = activeScene === 'controller' ? 'printer' : 'controller'; context.activeScene = activeScene; context.previousFrame = undefined; previous = undefined; }
     const nativeTimestamp = fixture.timestamps[index], interval = previous === undefined ? 0 : nativeTimestamp - previous;
     const delta = previous === undefined || interval <= 0 ? 0 : interval >= 50 ? .05 : interval / 1000;
     const move = expectedMovement(keys, delta, options.enabled ?? true);
     position = position.map((value, axis) => value + move[axis]); target = target.map((value, axis) => value + move[axis]);
-    if (!options.paused && !options.testFrozen) life += delta;
+    if (!options.paused && !options.testFrozen) { if (activeScene === 'controller') life += delta; else printerLife += delta; }
     context.advanceFrame(nativeTimestamp);
-    compare('life follows clamped native elapsed time', context.worldTime, life, index);
+    compare('controller life follows only its active clamped elapsed time', context.worldTime, life, index);
+    compare('printer life follows only its active clamped elapsed time', context.printerTime, printerLife, index);
     for (let axis = 0; axis < 3; axis++) {
       compare(`camera translation axis ${axis}`, context.camera.position.getComponent(axis), position[axis], index);
       compare(`target translation axis ${axis}`, context.controls.target.getComponent(axis), target[axis], index);
       compare(`camera-target offset axis ${axis}`, context.camera.position.getComponent(axis) - context.controls.target.getComponent(axis), initialPosition[axis] - initialTarget[axis], index);
     }
     compare('previous frame preserves exact native timestamp', context.previousFrame, nativeTimestamp, index);
-    rows.push({ nativeTimestamp, nativeIntervalMs: previous === undefined ? null : interval, expectedDeltaSeconds: delta, actualLife: context.worldTime, expectedLife: life, position: context.camera.position.toArray(), target: context.controls.target.toArray() });
+    rows.push({ activeScene, nativeTimestamp, nativeIntervalMs: previous === undefined ? null : interval, expectedDeltaSeconds: delta, actualLife: context.worldTime, expectedLife: life, actualPrinterLife: context.printerTime, expectedPrinterLife: printerLife, position: context.camera.position.toArray(), target: context.controls.target.toArray() });
     previous = nativeTimestamp;
   }
   return { name: fixture.name, options, samples: rows.length, sub50Intervals: rows.filter(row => row.nativeIntervalMs > 0 && row.nativeIntervalMs < 50).length, over50Intervals: rows.filter(row => row.nativeIntervalMs > 50).length, violations, rows };
@@ -116,31 +121,38 @@ try {
   const source = await readFile(sourcePath, 'utf8'), extracted = extract(source), executable = {};
   report.extraction = extracted.boundaries;
   report.extraction.policy = 'Only the actual guard, contiguous delta/life/previousFrame/pan call and complete translateCamera function execute. Renderer, simulation updates and DEV instrumentation are outside this CPU claim.';
-  for (const mode of ['actual', 'fixed', 'unclamped']) {
+  for (const mode of ['actual', 'fixed', 'unclamped', 'oldXZ']) {
     executable[mode] = compile(extracted[mode]);
     await writeFile(`${runDirectory}/${mode}.ts`, extracted[mode], { flag: 'wx' });
     await writeFile(`${runDirectory}/${mode}.js`, executable[mode], { flag: 'wx' });
   }
   report.executed = Object.fromEntries(Object.entries(executable).map(([mode, text]) => [mode, { path: `${runDirectory}/${mode}.js`, sha256: hash(text) }]));
-  for (const fixture of fixtures) {
-    const result = trial(executable.actual, fixture);
-    report.cases.push(result); assert.deepEqual(result.violations, [], fixture.name);
+  for (const activeScene of report.activeScenes) {
+    for (const fixture of fixtures) {
+      const result = trial(executable.actual, fixture, { activeScene });
+      report.cases.push(result); assert.deepEqual(result.violations, [], activeScene + ': ' + fixture.name);
+    }
+    for (const keys of [['d'], ['s'], ['a'], ['w', 'd'], ['w', 's'], ['w', 'a', 's', 'd']]) {
+      const result = trial(executable.actual, changing, { activeScene, keys }); report.cases.push(result); assert.deepEqual(result.violations, [], `${activeScene}: actual pan keys ${keys}`);
+    }
+    for (const options of [{ paused: true }, { testFrozen: true }, { enabled: false }, { resetAt: 100 }, { switchAt: 100 }]) {
+      const result = trial(executable.actual, changing, { activeScene, ...options }); report.cases.push(result); assert.deepEqual(result.violations, [], `${activeScene}: integration guard ${JSON.stringify(options)}`);
+      if (options.switchAt !== undefined) assert.equal(new Set(result.rows.map(row => row.activeScene)).size, 2, 'Scene-switch fixture must execute both retained clocks.');
+    }
+    for (const mode of ['fixed', 'unclamped']) {
+      const observations = fixtures.map(fixture => trial(executable[mode], fixture, { activeScene }));
+      const expectedRejected = mode === 'fixed' ? ['10 Hz', '20 Hz', '120 Hz', '240 Hz', changing.name] : ['10 Hz', changing.name];
+      const rejected = observations.filter(value => value.violations.length).map(value => value.name);
+      assert.deepEqual(rejected, expectedRejected, `${activeScene}/${mode}: the executed mutation must fail exactly the cadences that distinguish it.`);
+      assert.ok(observations.some(value => value.violations.length && value.over50Intervals), `${activeScene}/${mode}: a genuinely long native interval must discriminate.`);
+      if (mode === 'fixed') assert.ok(observations.some(value => value.violations.length && value.sub50Intervals), 'Fixed-step mutation must also fail below the clamp, not only after long frames.');
+      report.controls.push({ activeScene, mode, rejected, nonDiscriminating: observations.filter(value => !value.violations.length).map(value => value.name), observations });
+    }
+    const oldFacing = fixtures.map(fixture => trial(executable.oldXZ, fixture, { activeScene }));
+    assert.ok(oldFacing.every(observation=>observation.violations.some(violation=>violation.invariant==='camera translation axis 1')), 'The executed old horizontal W must fail vertical translation in every cadence.');
+    report.controls.push({activeScene,mode:'oldXZ',rejected:oldFacing.map(value=>value.name),observations:oldFacing});
   }
-  for (const keys of [['d'], ['s'], ['a'], ['w', 'd'], ['w', 's'], ['w', 'a', 's', 'd']]) {
-    const result = trial(executable.actual, changing, { keys }); report.cases.push(result); assert.deepEqual(result.violations, [], `Actual pan keys ${keys}`);
-  }
-  for (const options of [{ paused: true }, { testFrozen: true }, { enabled: false }, { resetAt: 100 }]) {
-    const result = trial(executable.actual, changing, options); report.cases.push(result); assert.deepEqual(result.violations, [], `Integration guard ${JSON.stringify(options)}`);
-  }
-  for (const mode of ['fixed', 'unclamped']) {
-    const observations = fixtures.map(fixture => trial(executable[mode], fixture));
-    const expectedRejected = mode === 'fixed' ? ['10 Hz', '20 Hz', '120 Hz', '240 Hz', changing.name] : ['10 Hz', changing.name];
-    const rejected = observations.filter(value => value.violations.length).map(value => value.name);
-    assert.deepEqual(rejected, expectedRejected, `${mode}: the executed mutation must fail exactly the cadences that distinguish it.`);
-    assert.ok(observations.some(value => value.violations.length && value.over50Intervals), `${mode}: a genuinely long native interval must discriminate.`);
-    if (mode === 'fixed') assert.ok(observations.some(value => value.violations.length && value.sub50Intervals), 'Fixed-step mutation must also fail below the clamp, not only after long frames.');
-    report.controls.push({ mode, rejected, nonDiscriminating: observations.filter(value => !value.violations.length).map(value => value.name), observations });
-  }
+  assert.equal(report.cases.length, 34); assert.deepEqual(report.controls.map(control => [control.activeScene, control.mode]), [['controller', 'fixed'], ['controller', 'unclamped'], ['controller', 'oldXZ'], ['printer', 'fixed'], ['printer', 'unclamped'], ['printer', 'oldXZ']]);
   report.limitations = ['A correct 60Hz sequence cannot distinguish a 1/60 fixed step; the 120/240Hz and changing native intervals do.', 'Removing only the upper clamp cannot be distinguished by frames at or below50ms; the 10Hz and changing native intervals do.', 'Native timestamps here are explicit CPU fixtures. This does not claim a physical monitor delivered those cadences or validate browser event delivery/render work.'];
   report.sourceAfter = await digests(); assert.deepEqual(report.sourceAfter, report.sourceBefore, 'Source must remain fixed throughout CPU proof.');
   report.pass = true;

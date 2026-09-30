@@ -112,7 +112,7 @@ The README is for people visiting the project. Keep its live link, short introdu
 
 The public app is served at `https://yanfengliu.github.io/tiny_people/`. `.github/workflows/pages.yml` builds pushes to `main` and manual runs on `main`, then deploys only `dist/` through the `github-pages` environment. GitHub Pages must use GitHub Actions as its build source. The build uses `.nvmrc`, `npm ci` and `npm run build -- --base=/tiny_people/`; preserve this project-path base when reproducing or changing deployment. Default local development still serves at `/`. Keep third-party actions pinned to reviewed full commit SHAs, and keep Pages and OIDC write permissions in the deployment job.
 
-The three reviewed screenshots in `docs/showcase/` are versioned documentation assets. The two user-authorized design references are versioned in `docs/references/`. Other captures, dependencies, builds, browser artifacts and scratch work remain ignored. Preserve the references and `LICENSE`. Production visuals require no raster image, external font, model download or runtime network service.
+The four reviewed screenshots in `docs/showcase/` are versioned documentation assets. The printer image is an unedited native capture, retained at 142,764 bytes after individual coordinator and independent review. The two user-authorized design references are versioned in `docs/references/`. Other captures, dependencies, builds, browser artifacts and scratch work remain ignored. Preserve the references and `LICENSE`. Production visuals require no raster image, external font, model download or runtime network service.
 
 ## Maintenance context
 

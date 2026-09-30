@@ -10,6 +10,10 @@ Open it in your browser, choose a scene from the menu, then orbit, zoom and look
 
 *A whole neighborhood on one controller.*
 
+![A blue printer houses coral apartments, a cyan corner room, guarded stairs, a rooftop café and flowering gardens around its printed paper waterfall.](docs/showcase/printer.jpg)
+
+*Daily life on and inside a printer.*
+
 ## Explore
 
 | Action | Control |

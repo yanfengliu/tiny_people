@@ -4,13 +4,15 @@
 // Native RAF timestamps are retained; the throttle owns/cancels only handles it creates. No warning suppression or test-clock pause substitutes.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { relative, resolve } from 'node:path';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import { nativeExposure, emitGateProgress } from './native-observation.mjs';
 
 const output = resolve('output/exploration');
+const cacheDir = resolve(output, 'vite-cache');
+assert.equal(relative(output, cacheDir), 'vite-cache', 'The owned exploration cache must remain inside its evidence directory.');
 const required = ['model-only','global-keys','wasd','chord-release','input-negatives','held-lifecycle','frame-partitions','reduced-load','reduced-live','navigation','persisted-lifecycle','webgl-unavailable','webgl-recovery'];
 const report = { checks: [], screenshots: [], errors: [], layouts: [], pans: [], exposures: [], lifecycle: {}, cleanup: {} };
 const contexts = new Set();
@@ -34,7 +36,6 @@ function translation(before,after,message) {
   const delta = subtract(after.position,before.position), targetDelta = subtract(after.target,before.target);
   assert.ok(magnitude(delta)>.01,`${message}: no meaningful translation.`);
   assert.ok(magnitude(subtract(delta,targetDelta))<1e-6,`${message}: camera and target must translate equally.`);
-  assert.ok(Math.abs(delta[1])<1e-6,`${message}: pan must remain in the XZ plane.`);
   assert.ok(Math.abs(distance(after)-distance(before))<1e-6,`${message}: orbit distance changed.`);
   return delta;
 }
@@ -92,13 +93,16 @@ async function modelOnly(page) {
   const result=await page.evaluate(()=>{
     function visible(element){for(let current=element;current&&current!==document.documentElement;current=current.parentElement){const style=getComputedStyle(current),rect=current.getBoundingClientRect();if(current.hidden||style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)return false;if((rect.width<=1&&rect.height<=1&&style.overflow==='hidden')||style.clip==='rect(0px, 0px, 0px, 0px)'||style.clipPath==='inset(50%)')return false;}return true;}
     const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),texts=[];let node;
-    while((node=walker.nextNode()))if(node.textContent.trim()&&!['SCRIPT','STYLE','NOSCRIPT'].includes(node.parentElement.tagName)&&visible(node.parentElement))texts.push(node.textContent.trim());
-    const ui=[...document.querySelectorAll('button,a,input,textarea,select,nav,header,footer,[role="button"]')].filter(visible).map(element=>element.outerHTML);
+    while((node=walker.nextNode()))if(node.textContent.trim()&&!node.parentElement.closest('#scene-switcher')&&!['SCRIPT','STYLE','NOSCRIPT'].includes(node.parentElement.tagName)&&visible(node.parentElement))texts.push(node.textContent.trim());
+    const ui=[...document.querySelectorAll('button,a,input,textarea,select,nav,header,footer,[role="button"]')].filter(visible).map(element=>element.id);
+    const sceneOptions=[...document.querySelectorAll('#scene-switcher option')].map(option=>option.value);
     const scene=document.querySelector('canvas'),rect=scene.getBoundingClientRect(),style=getComputedStyle(scene);
-    return {texts,ui,width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,scrollHeight:document.documentElement.scrollHeight,canvas:rect.toJSON(),outline:style.outlineStyle!=='none'&&parseFloat(style.outlineWidth)>0,help:document.querySelector('#keyboard-help')?.textContent,helpVisible:visible(document.querySelector('#keyboard-help'))};
+    return {texts,ui,sceneOptions,width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,scrollHeight:document.documentElement.scrollHeight,canvas:rect.toJSON(),outline:style.outlineStyle!=='none'&&parseFloat(style.outlineWidth)>0,help:document.querySelector('#keyboard-help')?.textContent,helpVisible:visible(document.querySelector('#keyboard-help'))};
   });
-  assert.deepEqual(result.texts,[],'Healthy rendering must show no DOM text.');assert.deepEqual(result.ui,[],'Healthy rendering must show no interface controls.');
-  assert.ok(result.help&&/\bpan\b/i.test(result.help),'Clipped keyboard help must describe panning.');
+  assert.deepEqual(result.texts,[],'Healthy rendering must show no DOM text outside the scene menu.');assert.deepEqual(result.ui,['scene-switcher'],'The scene menu is the only visible interface control.');assert.deepEqual(result.sceneOptions,['controller','printer'],'The scene menu must offer both neighborhoods.');
+  assert.match(result.help??'',/\bW\b[^.]*\bforward\b[^.]*\bdirection\b[^.]*\blooking\b[^.]*\bup\b[^.]*\bdown\b/i,'Clipped keyboard help must describe W following the facing direction, including up or down.');
+  assert.match(result.help??'',/\bS\b[^.]*\bbackward\b/i,'Clipped keyboard help must describe S moving backward.');
+  assert.match(result.help??'',/\bA\b[^.]*\bD\b[^.]*\bsideways\b/i,'Clipped keyboard help must describe A/D moving sideways.');
   for(const key of ['W','A','S','D'])assert.match(result.help,new RegExp(`\\b${key}\\b`,'i'),`Clipped keyboard help must name ${key}.`);
   assert.equal(result.helpVisible,false,'Keyboard help must stay visually clipped.');
   assert.equal(result.outline,false,'A focused canvas must not introduce a visible interface border.');
@@ -119,6 +123,7 @@ async function pan(page,keys,label,{repeat=false,duration=900,anchor}={}) {
   const exposure=await expose(page,`${label} held input`,{source:'application',minimumFrames:12,minimumClampedMs:duration,afterSequence:startFrames.lastSequence});
   for(const key of [...keys].reverse())await page.keyboard.up(key);
   const after=await camera(page),delta=translation(before,after,label);
+  if(!keys.includes('w')&&!keys.includes('s'))assert.ok(Math.abs(delta[1])<1e-6,`${label}: lateral movement must remain horizontal.`);
   const timing=await page.evaluate(()=>({events:window.__gateKeys,frameWork:window.__tinyWorld.frameWork()}));
   const down=timing.events.find(event=>event.type==='keydown'),up=timing.events.find(event=>event.type==='keyup');
   // Completed application sequences align keys with actual render work; observer RAF callbacks never enter the integration denominator.
@@ -139,7 +144,7 @@ try {
   await import('./check-exploration-frames.mjs');
   await import('./check-runtime-frames.mjs');
   await emitGateProgress({stage:'exploration/preflight',action:'native-and-runtime-cpu',witness:'completed',value:1});
-  vite=await createServer({server:{host:'127.0.0.1',port:0,strictPort:false}});await vite.listen();baseUrl=vite.resolvedUrls.local[0];
+  vite=await createServer({cacheDir,server:{host:'127.0.0.1',port:0,strictPort:false}});assert.equal(resolve(vite.config.cacheDir),cacheDir,'Vite must use the exploration gate\'s private cache.');await vite.listen();baseUrl=vite.resolvedUrls.local[0];
   browserServer=await chromium.launchServer({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||undefined,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE||undefined,args:['--enable-unsafe-swiftshader']});browserPid=browserServer.process().pid;
   console.log(`Owned exploration browser PID: ${browserPid}`);browser=await chromium.connect(browserServer.wsEndpoint());
   const desktop=await open('desktop'),page=desktop.page;await ready(page);await running(page,'Fresh desktop');
@@ -155,9 +160,9 @@ try {
   report.checks.push('global-keys');
 
   await page.keyboard.press('r');await page.mouse.move(850,480);await page.mouse.down();await page.mouse.move(1080,540,{steps:16});await page.mouse.up();await settle(page);const anchor=await camera(page);
-  const forward=normalized([anchor.target[0]-anchor.position[0],0,anchor.target[2]-anchor.position[2]]),right=[-forward[2],0,forward[0]];
+  const forward=normalized(subtract(anchor.target,anchor.position)),right=normalized([-forward[2],0,forward[0]]);
   const trials={};for(const key of ['w','s','d','a'])trials[key]=await pan(page,[key],`Oblique ${key.toUpperCase()}`,{anchor});
-  assert.ok(dot(normalized(trials.w.delta),forward)>.99&&dot(normalized(trials.s.delta),forward)<-.99,'W/S must follow opposite projected view directions.');
+  assert.ok(dot(normalized(trials.w.delta),forward)>1-1e-7&&dot(normalized(trials.s.delta),forward)<-1+1e-7,'W/S must follow the full opposite facing vectors, including camera pitch.');
   assert.ok(dot(normalized(trials.d.delta),right)>.99&&dot(normalized(trials.a.delta),right)<-.99,'A/D must follow opposite camera-relative sides.');
   similar(trials.w.speed,trials.s.speed,'W/S speed');similar(trials.d.speed,trials.a.speed,'D/A speed');
   for(const chord of [['w','s'],['a','d']]){for(const key of chord)await page.keyboard.down(key);await stopped(page,`${chord.join('+')} cancellation`);for(const key of chord)await page.keyboard.up(key);await settle(page);}
@@ -214,7 +219,7 @@ try {
   assert.deepEqual([...report.checks].sort(),[...required].sort(),'Every model-only behavior group must run.');assert.equal(report.screenshots.length,6);assert.deepEqual(report.errors,[],'No runtime, console or network warnings/errors are permitted.');console.log(`PASS model-only exploration: ${report.checks.length} groups, ${report.pans.length} measured translations, ${report.screenshots.length} screenshot hashes.`);
 } catch(error){failure={name:error.name,message:error.message};throw error;}
 finally {
-  const cleanupErrors=[];for(const context of contexts)await context.close().catch(error=>cleanupErrors.push(error.message));contexts.clear();await browser?.close().catch(error=>cleanupErrors.push(error.message));await browserServer?.close().catch(error=>cleanupErrors.push(error.message));await vite?.close().catch(error=>cleanupErrors.push(error.message));if(browserPid&&live(browserPid))await browserServer.kill().catch(error=>cleanupErrors.push(error.message));
+  const cleanupErrors=[];for(const context of contexts)await context.close().catch(error=>cleanupErrors.push(error.message));contexts.clear();await browser?.close().catch(error=>cleanupErrors.push(error.message));await browserServer?.close().catch(error=>cleanupErrors.push(error.message));let viteClosed=true;await vite?.close().catch(error=>{viteClosed=false;cleanupErrors.push(error.message);});if(viteClosed)await rm(cacheDir,{recursive:true,force:true}).catch(error=>cleanupErrors.push('Owned Vite cache cleanup failed: '+error.message));if(browserPid&&live(browserPid))await browserServer.kill().catch(error=>cleanupErrors.push(error.message));
   report.cleanup={browserPid:browserPid??null,browserStopped:!browserPid||!live(browserPid),errors:cleanupErrors};await writeFile(resolve(output,'evidence.json'),JSON.stringify({...report,failure:failure??null},null,2));assert.equal(report.cleanup.browserStopped,true);assert.deepEqual(cleanupErrors,[]);console.log(`Cleanup: owned browser ${browserPid??'not started'} and all contexts/Vite stopped.`);
 }
 async function pagePreference(page,value){await expose(page,'Media preference exposure',{minimumClampedMs:100});assert.equal((await state(page)).reducedMotion,value);}

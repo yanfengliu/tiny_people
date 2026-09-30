@@ -39,6 +39,19 @@ const events = page => page.evaluate(() => window.__tinyWorld.mechanismEvents())
 const socialHistory = page => page.evaluate(() => window.__tinyWorld.socialHistory());
 const socialWorld = page => page.evaluate(() => { const s = window.__tinyWorld.social(); return { time: s.time, tick: s.tick, actors: s.actors, interactions: s.interactions, reservations: s.reservations, frame: s.frame }; });
 const frame = page => nativeExposure(page, { label: 'mechanism-frame-observation', minimumFrames: 2 });
+async function motionPreference(page, reducedMotion) {
+  const expected = reducedMotion === 'reduce';
+  await page.emulateMedia({ reducedMotion });
+  // Protocol completion precedes native change delivery. Await only preference
+  // agreement, then expose real frame time independently of mechanism progress.
+  await page.waitForFunction(expected => matchMedia('(prefers-reduced-motion: reduce)').matches === expected && window.__tinyWorld.state().reducedMotion === expected, expected, { timeout: 5000 });
+  // The handler resets previousFrame. At 240 Hz two callbacks span only 4ms;
+  // 20ms after delivery crosses the fixed mechanism step without a wall sleep.
+  const exposure = await nativeExposure(page, { label: 'mechanism-motion-preference-' + reducedMotion, minimumFrames: 2, minimumClampedMs: 20 });
+  const delivered = await page.evaluate(() => ({ native: matchMedia('(prefers-reduced-motion: reduce)').matches, application: window.__tinyWorld.state().reducedMotion }));
+  assert.equal(delivered.native, expected); assert.equal(delivered.application, expected);
+  (report.motionPreferences ??= []).push({ reducedMotion, delivered, exposure });
+}
 const expose = (page, label, minimumClampedMs = 0, minimumElapsedMs = 0, source = 'auto') =>
   nativeExposure(page, { label, minimumFrames: 3, minimumClampedMs, minimumElapsedMs, source });
 const magnitude = values => Math.hypot(...values);
@@ -160,15 +173,26 @@ async function ready(page) {
 }
 async function modelOnly(page) {
   const result = await page.evaluate(() => {
+    function visible(element) {
+      for (let current = element; current && current !== document.documentElement; current = current.parentElement) {
+        const style = getComputedStyle(current), box = current.getBoundingClientRect();
+        if (current.hidden || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0 || style.clip === 'rect(0px, 0px, 0px, 0px)' || style.clipPath === 'inset(50%)' || (box.width <= 1 && box.height <= 1 && style.overflow === 'hidden')) return false;
+      }
+      return true;
+    }
     const visibleText = [...document.querySelectorAll('body *')].filter(element => {
-      if (element.closest('#error') || ![...element.childNodes].some(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim())) return false;
-      const style = getComputedStyle(element), box = element.getBoundingClientRect();
-      return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0 && style.clip === 'auto' && box.width > 2 && box.height > 2;
+      if (element.closest('#error, #scene-switcher') || ![...element.childNodes].some(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim())) return false;
+      const box = element.getBoundingClientRect();
+      return visible(element) && box.width > 2 && box.height > 2;
     }).map(element => element.textContent.trim());
+    const ui = [...document.querySelectorAll('button,a,input,textarea,select,nav,header,footer,[role="button"]')].filter(visible).map(element => element.id);
+    const sceneOptions = [...document.querySelectorAll('#scene-switcher option')].map(option => option.value);
     const canvas = document.querySelector('canvas').getBoundingClientRect();
-    return { visibleText, width: innerWidth, height: innerHeight, canvas: { width: canvas.width, height: canvas.height } };
+    return { visibleText, ui, sceneOptions, width: innerWidth, height: innerHeight, canvas: { width: canvas.width, height: canvas.height } };
   });
-  assert.deepEqual(result.visibleText, [], 'Healthy production/development scenes must not add visible text.');
+  assert.deepEqual(result.visibleText, [], 'Healthy production/development scenes must not add visible text outside the scene menu.');
+  assert.deepEqual(result.ui, ['scene-switcher'], 'The scene menu must be the only visible interface control.');
+  assert.deepEqual(result.sceneOptions, ['controller', 'printer'], 'The scene menu must offer both neighborhoods.');
   assert.equal(result.canvas.width, result.width); assert.equal(result.canvas.height, result.height);
 }
 async function setView(page, fixture) {
@@ -650,7 +674,7 @@ try {
   console.log('NATIVE STATES READY: ' + resolve(output, 'native-states.json'));
 
   await prepare(page, fixtures.endpointHover);
-  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await motionPreference(page, 'reduce');
   await focusButton(page, fixtures.endpointHover.id); await frame(page);
   const stationaryPoint = await project(page, fixtures.endpointHover.point);
   await page.mouse.move(stationaryPoint.x, stationaryPoint.y); await frame(page);
@@ -661,7 +685,7 @@ try {
   await capture(page, 'stationary-endpoint-hover', false, true);
   await keyboardToggle(page, fixtures.endpointHover.id); await frame(page);
   assert.equal(await page.evaluate(() => window.__tinyWorld.mechanismInput().hover), undefined, 'Closing geometry must remove stationary hover.');
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await motionPreference(page, 'no-preference');
   report.checks.push('endpoint-hover');
 
   await prepare(page, secondary);
@@ -817,11 +841,11 @@ try {
   assert.deepEqual(await socialWorld(reduced.page), reducedSocial);
   assert.equal((await socialHistory(reduced.page)).openings.length, reducedInputs + 1, 'Instant real opening must be retained despite frozen social time.');
   await capture(reduced.page, 'reduced-open'); await closePage(reduced.context);
-  await page.emulateMedia({ reducedMotion: 'no-preference' }); await diagnosticClosed(page);
+  await motionPreference(page, 'no-preference'); await diagnosticClosed(page);
   await keyboardToggle(page, primary.id);
-  await page.emulateMedia({ reducedMotion: 'reduce' }); await frame(page);
+  await motionPreference(page, 'reduce'); await frame(page);
   assert.equal(mechanism(await snapshots(page), primary.id).progress, 1, 'Live reduced-motion change must settle the current target.');
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await motionPreference(page, 'no-preference');
   report.checks.push('reduced-motion');
 
   await ensureLifeRunning(page); await diagnosticClosed(page);
@@ -893,7 +917,7 @@ try {
 
   // Warm every mechanism/material before the exact allocation check. Real keyboard commands
   // perform the 100 cycles; reduced motion avoids conflating allocation with animation time.
-  await page.emulateMedia({ reducedMotion: 'reduce' }); await diagnosticClosed(page);
+  await motionPreference(page, 'reduce'); await diagnosticClosed(page);
   for (const fixture of fixtures.mechanisms) {
     await keyboardToggle(page, fixture.id); await settled(page, fixture.id, 1);
     await keyboardToggle(page, fixture.id); await settled(page, fixture.id, 0);
@@ -913,7 +937,7 @@ try {
   report.resources = { cycles: 100, acceptedRealCommands: 200, before: beforeResources, after: afterResources };
   report.checks.push('resource-cycles');
 
-  await page.emulateMedia({ reducedMotion: 'no-preference' }); await diagnosticClosed(page);
+  await motionPreference(page, 'no-preference'); await diagnosticClosed(page);
   await page.locator('canvas').focus(); await page.keyboard.press('r'); await ensureLifeRunning(page);
   const resumedSocial = await socialWorld(page);
   assert.ok(resumedSocial.actors.every(actor => actor.pendingReactions.length <= 3), 'At most one pending response per mechanism may remain per resident after frozen-cycle resumption.');

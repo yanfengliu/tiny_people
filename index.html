@@ -4,14 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#e8e8e5" />
-    <meta name="description" content="Explore a living 3D miniature inside a familiar controller." />
+    <meta name="description" content="Explore tiny neighborhoods inside a familiar controller and a working printer." />
     <title>Tiny people</title>
     <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <main id="app" aria-label="Living controller miniature">
+    <main id="app" aria-label="Tiny people living miniatures">
       <div id="scene"></div>
-      <p id="keyboard-help" class="sr-only">Hold W, A, S or D to pan. Arrow keys orbit. Plus and minus zoom. R resets the view. Space pauses or resumes life. Drag the scene with the mouse or one finger to orbit. Use the wheel or pinch and spread two fingers to zoom. Hold a face, plus or home button to press it. Drag the joystick cap to tilt it; release to center. Click the coral rail, shoulder housing or joystick cap to open or close it. Tab focuses each physical part. Enter or Space opens a focused service part or holds a focused button. Arrow keys tilt the focused joystick until released.</p>
+      <label class="sr-only" for="scene-switcher">Choose a scene</label>
+      <select id="scene-switcher" aria-label="Choose a scene">
+        <option value="controller">Controller neighborhood</option>
+        <option value="printer">Printer neighborhood</option>
+      </select>
+      <p id="keyboard-help" class="sr-only">Choose a neighborhood with the scene menu. Hold W to move forward in the direction you are looking, including up or down. Hold S to move backward. Hold A or D to move sideways. Arrow keys orbit. Plus and minus zoom. R resets the view. Space pauses or resumes life. Drag the scene with the mouse or one finger to orbit. Use the wheel or pinch and spread two fingers to zoom. On the controller, hold a face, plus or home button to press it. Drag the joystick cap to tilt it; release to center. Click the coral rail, shoulder housing or joystick cap to open or close it. On the printer, click the scanner lid, paper drawer or print button to operate it. Tab focuses each physical part. Enter or Space opens a focused service part or holds a focused button. Arrow keys tilt the focused joystick until released.</p>
       <div id="error" class="error" role="alert" hidden></div>
     </main>
     <script type="module" src="/src/main.ts"></script>

@@ -4,8 +4,8 @@
 import { chromium } from 'playwright';
 import { PNG } from 'playwright-core/lib/utilsBundle';
 import { createServer, preview } from 'vite';
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { relative, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { nativeExposure as observeNative, emitGateProgress } from './native-observation.mjs';
@@ -45,6 +45,8 @@ function assertProductionStable(beforeBytes, afterBytes, message) {
 }
 
 const output = resolve('output/playwright');
+const cacheDir = resolve(output, 'vite-cache');
+assert.equal(relative(output, cacheDir), 'vite-cache', 'The owned browser gate cache must remain inside its evidence directory.');
 await mkdir(output, { recursive: true });
 const errors = [];
 const evidence = [];
@@ -60,7 +62,8 @@ try {
   for (const path of ['src/scene/controller.ts','src/scene/geometry.ts']) {
     assert.doesNotMatch(await readFile(path,'utf8'), /\blettering\b|\bglyphs\b/, `${path} must not contain controller lettering geometry.`);
   }
-  vite = await createServer({ server: { host: '127.0.0.1', port: 0, strictPort: false } });
+  vite = await createServer({ cacheDir, server: { host: '127.0.0.1', port: 0, strictPort: false } });
+  assert.equal(resolve(vite.config.cacheDir), cacheDir, 'Vite must use the browser gate\'s private cache.');
   await vite.listen();
   browserServer = await chromium.launchServer({
     headless: true,
@@ -203,5 +206,6 @@ try {
   if(productionServer)await new Promise((resolveClose,reject)=>productionServer.httpServer.close(error=>error?reject(error):resolveClose()));
   if (browserPid && live(browserPid)) { await browserServer.kill(); }
   if (browserPid) assert.equal(live(browserPid),false,`Owned browser ${browserPid} must be stopped.`);
+  await rm(cacheDir, { recursive: true, force: true });
   console.log(`Cleanup: browser ${browserPid ?? 'not started'} stopped; in-process Vite server closed.`);
 }

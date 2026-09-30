@@ -162,6 +162,7 @@ vite.config.ts.timestamp-*
 !/docs/showcase/overview.jpg
 !/docs/showcase/cafe.jpg
 !/docs/showcase/circuit-homes.jpg
+!/docs/showcase/printer.jpg
 
 # Original visual references explicitly authorized for versioning on 2026-09-29.
 !/docs/references/nintendo.png
