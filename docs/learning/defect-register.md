@@ -1,5 +1,13 @@
 # Defect register
 
+## Printer draft matched colors but missed the reference architecture
+
+**Reported symptom:** During the 2026-09-29 printer-scene work, the user said the model was not exactly like the reference image. The initial native renders showed a regular rectangular blue tower with repeated coral balcony strips, a narrow side duct and a short paper strip.
+
+**Investigation and cause:** The initial implementation fixed four regular inhabited floors before extracting the reference's main silhouette and projecting forms. Color and furniture detail could not compensate for the missing large looping duct, broad curved paper waterfall, asymmetrical room wings and external stairs.
+
+**Correction and check:** Open in work 5. The architecture worker is replacing those forms while keeping resident supports coherent. Acceptance now requires direct native-resolution reference comparison plus measured checks of the actual rendered feature geometry and deliberate absent/flattened-feature controls. Those checks cover structural regression; manual visual review still owns proportions, density and overall resemblance. No completed fidelity check is claimed yet.
+
 ## Outside-canvas release blocked fresh touch input (F1)
 
 **Review finding and native reproduction:** After cancelling three touches or mixed mouse/touch input, moving the remaining touch outside the viewport and lifting it left later scene drags inert. Trusted native move/up events at x=-30 targeted HTML instead of the canvas. The next drag moved the camera zero units, while the identical drag after a synthetic blur moved it 2.5355 units. A separate narrowed-canvas fixture also reproduced the issue; the permanent gate uses unchanged canvas bounds.
