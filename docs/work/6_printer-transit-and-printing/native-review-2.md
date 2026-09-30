@@ -1,0 +1,9 @@
+# Integrated paper and transit diagnostic review
+
+2026-09-30, coordinator. Report SHA-256 1136F7633DF836E60307D6929B83FDF5E91F311039565C2D790D0ACEF1A601FC binds 18 original PNGs under ignored output/worktrees/printer-transit-world/output/transit-world/native-paper/. Root inspected each individually at original resolution and checked its bytes against the manifest. Frozen source includes paper8635, world37A4, travel0489, life443A, transit9385 and residentsB7C67. This remains diagnostic while full clearance and independent acceptance are open.
+
+Paper 01/09/10 retain the reference view. 02/03/04/11 show full-length release and curling/folding visibly; the fall reads as a long sheet rather than a shrinking rectangle. Settled 05/06/07/08/12 show lower-fold diagrams bleeding through the opaque top, muddling the stack. Repair that material occlusion and recheck crisp visible top print; paper contact/length CPU positives did not detect the rendered defect. 07/08 clip the outlet, so exact initial feeding needs a wider witness.
+
+Transit 01 shows an improved lower-stair stance; final ascent/descent close views remain needed. 02 still obscures the upper-flight body. 04/05 show usable upper entry and seated bore beside the preserved gardener. 06/07 now show distinct seated and standing exit poses through the service opening; a clearer side view should support final foot/edge judgment. Inspect actual enclosure of the new tongue and exit edges before adding any unnecessary guard geometry.
+
+The report separately records paused real print travel 0→1→2, reset/scene preservation and 248 ordinary running samples. Twelve default-view phase measurements peak at 424 calls and 1,108,812 triangles, leaving 1,188 triangles under the unchanged cap; this is sampled submission evidence, not GPU completion or an all-view bound. Recorded cleanup has 46 owned identities, none remaining and no errors.
