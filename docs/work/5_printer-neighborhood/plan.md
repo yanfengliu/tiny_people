@@ -7,11 +7,11 @@ Updated: 2026-09-29
 
 ## Problem and outcome
 
-Visitors can explore only the controller. Add a scene dropdown and a second living miniature: a blue printer with coral homes, warm cutaway rooms, balconies, vegetation and a paper chute, following the local printer.png reference. Residents visibly walk, work, rest and socialize. Mouse actions operate real printer parts.
+Visitors can explore only the controller. Add a scene dropdown and a second living miniature: a blue printer with coral homes, warm cutaway rooms, balconies, vegetation and a paper chute, following docs/references/printer.png. Residents visibly walk, work, rest and socialize. Mouse actions operate real printer parts.
 
 ## Scope
 
-Preserve the controller and its existing camera, touch, physical controls and life behavior. Share exploration and pause controls across scenes. Add the printer world, animated residents, accessible part controls and a restrained scene dropdown. Production visuals remain source generated. No new dependencies, external fonts, downloaded models, runtime services or broad mobile redesign. The local raster reference stays ignored and unchanged.
+Preserve the controller and its existing camera, touch, physical controls and life behavior. Share exploration and pause controls across scenes. Add the printer world, animated residents, accessible part controls and a restrained scene dropdown. Production visuals remain source generated. No new dependencies, external fonts, downloaded models, runtime services or broad mobile redesign. The user's later instruction authorizes moving and committing both original raster references under docs/references/ with their bytes unchanged.
 
 ## Approach
 

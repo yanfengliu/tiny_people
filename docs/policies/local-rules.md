@@ -2,7 +2,7 @@
 
 The scene follows the local reference image: one charcoal right Joy-Con, warm coral rail and joystick collar, exposed green circuit board, bright neutral surroundings and colorful miniature residents.
 
-The authoritative color reference was replaced on 2026-09-05 with an HDR-adjusted `nintendo.png`, 2418×1354, SHA-256 `86CE70112D28809CE994AA3821B06AA6FF759FD20AF84BCE815943D199AAF14F`. Match its deeper charcoal, saturated salmon/coral, richer green board, controlled neutral-gray highlights, and vivid cyan/yellow/orange clothing. Earlier pale/over-bright color guidance is superseded.
+The authoritative color reference was replaced on 2026-09-05 with an HDR-adjusted `docs/references/nintendo.png`, 2418×1354, SHA-256 `86CE70112D28809CE994AA3821B06AA6FF759FD20AF84BCE815943D199AAF14F`. Match its deeper charcoal, saturated salmon/coral, richer green board, controlled neutral-gray highlights, and vivid cyan/yellow/orange clothing. Earlier pale/over-bright color guidance is superseded.
 
 All production visuals must be reproducible from source without ignored raster references, external fonts or downloaded models.
 
@@ -16,7 +16,7 @@ Autonomous social behavior uses deterministic traits for all 26 residents, autho
 
 Use Y up, negative Z toward the shoulder, and negative X toward the rail. Keep the controller silhouette and four-button diamond recognizable. WASD translates the camera and its target together in the controller's horizontal plane, relative to the current viewing direction. Instructions belong in the README and nonvisual accessibility description.
 
-Keep images, task output, temporary files, scratch work, dependencies and build products ignored, except the three reviewed README showcase screenshots explicitly allowed in `.gitignore` under `docs/showcase/`. These are documentation assets; production visuals remain generated from source. Preserve the original local reference.
+Keep images, task output, temporary files, scratch work, dependencies and build products ignored, except the three reviewed README showcase screenshots under `docs/showcase/` and the two original references under `docs/references/`. The user explicitly authorized committing the Nintendo and printer references on 2026-09-29, including their existing large binary sizes. Preserve their original bytes. These are documentation and design assets; production visuals remain generated from source.
 
 Browser and localhost verification must run headlessly with task-owned processes and cleanup. Do not leave a server running unless the user asks.
 
@@ -32,4 +32,4 @@ The README is for people visiting the project (user direction, 2026-09-28). Keep
 
 The user requested pressable buttons and mouse joystick manipulation on 2026-09-28. XYAB, plus and home may depress within their housings. The joystick may tilt reversibly while its supports and neighboring residents remain fixed. Preserve click-to-open inspection, ordinary camera drags elsewhere and nonvisual keyboard equivalents. These held gestures are temporary, cancel with input or lifecycle interruption and do not enter history or the social simulation.
 
-The user requested multiple scenes and a printer neighborhood on 2026-09-29. A visible accessible scene dropdown is now allowed. The controller remains one scene; the printer follows the ignored local printer.png reference with blue machinery, coral homes, warm furnished interiors, planted balconies and a paper chute. Camera exploration and life pause controls are shared across scenes. Printer mouse interactions operate unoccupied parts while resident supports remain fixed. Keep all production visuals reproducible from source.
+The user requested multiple scenes and a printer neighborhood on 2026-09-29. A visible accessible scene dropdown is now allowed. The controller remains one scene; the printer follows docs/references/printer.png with blue machinery, coral homes, warm furnished interiors, planted balconies and a paper chute. Camera exploration and life pause controls are shared across scenes. Printer mouse interactions operate unoccupied parts while resident supports remain fixed. Keep all production visuals reproducible from source.

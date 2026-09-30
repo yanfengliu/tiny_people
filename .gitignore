@@ -163,6 +163,10 @@ vite.config.ts.timestamp-*
 !/docs/showcase/cafe.jpg
 !/docs/showcase/circuit-homes.jpg
 
+# Original visual references explicitly authorized for versioning on 2026-09-29.
+!/docs/references/nintendo.png
+!/docs/references/printer.png
+
 # Task output, scratch work, browser state, and local build artifacts.
 /output/
 /outputs/
