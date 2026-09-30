@@ -1,5 +1,7 @@
 # Devlog Summary
 
+- 2026-09-29: **Two fingers zoom the scene on touch screens** — pinch and spread now reach the camera from the scene, physical buttons and joystick. Taking over a held control releases its pose and cancels its pending inspection click. Portrait/landscape native touch checks cover zoom, release order, interruptions and production pixels; desktop controls retain their existing checks.
+
 - 2026-09-28: **Buttons press and the joystick responds to mouse dragging** — six front controls depress and rebound, while the joystick tilts within its socket and returns to center. Mouse ownership keeps these gestures separate from camera orbit and inspection clicks. Nonvisual keyboard equivalents, interruption recovery and focused geometry/input gates cover the change; integration acceptance is recorded in work 3.
 
 - 2026-09-28: **The miniature is live on GitHub Pages** — the README now leads with the public link, screenshots and controls; agent procedures live in AGENTS. The pinned deployment workflow and live desktop controls pass verification. Independent review finds no material issue; the second reviewer is unavailable because of its usage limit.

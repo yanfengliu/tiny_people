@@ -1,0 +1,11 @@
+# Gate proofs
+
+## Two-finger touch zoom (2026-09-29)
+
+**Claim and bound:** Two native touch contacts must zoom the scene even when a physical control owned the first contact. `npm run check:touch-input` observes camera distance, page scale, commands, physical poses and trusted native event IDs at 390x844 and 844x390 in headless installed Chrome. It does not establish behavior on every physical device or browser. The user report, cause and permanent correction are in [the defect register](defect-register.md#two-finger-touch-zoom-was-cancelled-before-reaching-the-camera); acceptance is in [work 4](../work/4_pinch-zoom/plan.md).
+
+**Recoverable original:** `8fbbb7a1fff75823de9c5cf1991e43bef6409cbf:src/mechanism-input.ts`. No pre-existing lesson queue entry is retired by this change. The original runtime was restored from Git for a run of the finalized gate, then the fixed bytes were restored. Both the exact-original run and the repeatable command `npm run check:touch-input -- --old-cancellation` failed the intended assertion: "Two-finger spread must decrease scene camera distance by at least 20%." Both recorded two trusted pointer downs and native movement, unchanged camera position/target, page scale 1 and complete process cleanup.
+
+**Executed mutation:** The Vite pre-transform reinstates unconditional second-pointer cancellation before the touch handoff. Original runtime SHA-256 `b779611519e69e3d211a49986239c39f24413055a247e9449c6c0467cb50357e`; executed mutant SHA-256 `4c4e7ad3654cd44e5242dad371a3288b23d2c83873745a90039b91ad74d7124a`. The final harness SHA-256 is `1fb965206f1d91563d63990481b0ac697d9fc3416a8302c4c429faa1d4d5d243`. With fixed runtime, that same harness passes 44 groups and 156 complete observations. It asserts emitted trusted pointer-up identity/order and observed capture gain/loss, rather than inferring them from protocol command names.
+
+**Run provenance:** SHA-256 of the exact-original red report `fd92bf8848f7fb0c1bbda23c3869078e82d07a4b8eb4237f6b99da2f53a2a39e`; repeatable mutant red report `9dc82f21a3c54b7c1948fb04ac84afea529969bfd8151832a554093a62abae82`; repaired green report `2cdcb0f8ed6916ce4234b0cb3e2514be6766fd3ff7413d9033d833ab801494da`. Temporary reports and captures are removed after acceptance; the source, mutation command, assertion and authored conclusions remain reproducible in Git.

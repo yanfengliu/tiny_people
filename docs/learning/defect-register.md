@@ -1,5 +1,13 @@
 # Defect register
 
+## Two-finger touch zoom was cancelled before reaching the camera
+
+**Reported symptom:** The user could not zoom in or out with two fingers on mobile.
+
+**Investigation and cause:** The physical-input handler cancelled every second pointer before OrbitControls could enter its existing touch-dolly mode. Touches beginning on a physical button or joystick also withheld the first pointer from OrbitControls. Trusted Chromium touch input at 390x844 reproduced an unchanged camera while browser scale stayed at 1.
+
+**Correction and check:** Two actual touches now clear held physical poses and click candidates, then pass their native stream to OrbitControls. A swallowed first physical touch is transferred once at its latest position without dropping capture. `npm run check:touch-input` covers portrait/landscape spread and pinch from the background, shell, six buttons and joystick; unchanged page scale; existing distance limits; both observed trusted release orders; surviving/fresh one-finger orbit; native cancel/capture loss; synthetic blur; disabled, mixed and third-pointer input; stationary two-touch click suppression; and hookless production pixels. The `--old-cancellation` mutation reinstates the unconditional second-pointer cancellation and must fail the same camera-distance assertion. Coverage is Chromium mobile emulation, not every browser or physical device.
+
 ## Native timing gates must produce their required stimulus (F33)
 
 **Reported symptom:** Final root C exploration and mechanism-input gates reject missing stimulus at the observed faster native cadence. Exploration's fixed stride four produces zero intervals above 50 ms. Mechanism-input's fixed 450 ms command loop produces only six commands during its 600 native frames, below the required twelve. Both remain failed full gates; eighteen completed mechanism-input groups do not establish final timing or production acceptance.

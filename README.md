@@ -4,7 +4,7 @@
 
 A little neighborhood inside a charcoal-and-coral controller. Twenty-six residents meet for coffee, greet their neighbors and tend the gardens between its buttons and circuitry. Wander through the café, courtyard and two tiny homes at your own pace—there is nothing to win or manage.
 
-Open it in a desktop browser, then orbit, zoom and look closer. You can even open three parts of the controller to peek inside.
+Open it in your browser, then orbit, zoom and look closer. You can even open three parts of the controller to peek inside.
 
 ![Overview of the charcoal-and-coral controller, with a café, joystick courtyard and homes on the exposed green circuit board.](docs/showcase/overview.jpg)
 
@@ -14,9 +14,9 @@ Open it in a desktop browser, then orbit, zoom and look closer. You can even ope
 
 | Action | Control |
 | --- | --- |
-| Look around | Drag the mouse, or use the arrow keys |
+| Look around | Drag with the mouse or one finger, or use the arrow keys |
 | Move across the scene | Hold **W / A / S / D** |
-| Zoom | Scroll, or press **+ / −** |
+| Zoom | Pinch or spread two fingers, scroll, or press **+ / −** |
 | Return to the overview | **R** |
 | Pause or resume the residents | **Space**, when no movable part is focused |
 | Peek inside | Click the coral side rail, rear shoulder housing or joystick cap |

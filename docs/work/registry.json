@@ -23,6 +23,10 @@
     {
       "id": 3,
       "theme": "pressable-controls"
+    },
+    {
+      "id": 4,
+      "theme": "pinch-zoom"
     }
   ]
 }

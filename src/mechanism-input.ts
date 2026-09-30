@@ -32,6 +32,8 @@ export function createMechanismInput(options: InputOptions) {
   });
   const heldPointers = new Set<number>();
   const forwardedPointers = new Set<number>();
+  const touchPointers = new Map<number, PointerEvent>();
+  let forwardingTouch = false;
   let cancelling = false, wasMoving = false;
   let candidate: { id: string; pointerId: number; x: number; y: number; position: THREE.Vector3; quaternion: THREE.Quaternion } | undefined;
   let gesture: { id: string; pointerId: number; x: number; y: number; dragged: boolean; right: THREE.Vector3; up: THREE.Vector3 } | undefined;
@@ -81,7 +83,7 @@ export function createMechanismInput(options: InputOptions) {
     const owned = gesture; gesture = undefined;
     keyboardPress = undefined; stickKeys.clear(); physical.reset();
     if (owned && canvas.hasPointerCapture(owned.pointerId)) canvas.releasePointerCapture(owned.pointerId);
-    if (!retainActive) heldPointers.clear();
+    if (!retainActive) { heldPointers.clear(); touchPointers.clear(); }
     hover = undefined;
     lastX = lastY = -1;
     dirty = true;
@@ -113,8 +115,30 @@ export function createMechanismInput(options: InputOptions) {
   }
   function movingStick() { return options.snapshots().some(state => state.id === 'joystick' && state.progress !== state.target); }
   canvas.addEventListener('pointerdown', event => {
+    // The handoff below replays only a swallowed, still-active touch to OrbitControls.
+    if (forwardingTouch) return;
     heldPointers.add(event.pointerId);
-    // A second pointer cancels this desktop gesture before OrbitControls can create a mixed-pointer state.
+    if (event.pointerType === 'touch') touchPointers.set(event.pointerId, event);
+    // Two actual touches belong to the camera, even if the first held a physical part.
+    if (heldPointers.size === 2 && touchPointers.size === 2 && options.enabled()) {
+      candidate = undefined; gesture = undefined;
+      keyboardPress = undefined; stickKeys.clear(); physical.reset();
+      const first = [...touchPointers.values()].find(touch => touch.pointerId !== event.pointerId)!;
+      if (!forwardedPointers.has(first.pointerId)) {
+        // Keep its existing capture. Releasing it here can cancel the new camera stream.
+        forwardedPointers.add(first.pointerId);
+        forwardingTouch = true;
+        try {
+          canvas.dispatchEvent(new PointerEvent('pointerdown', {
+            pointerId: first.pointerId, pointerType: 'touch', isPrimary: first.isPrimary,
+            clientX: first.clientX, clientY: first.clientY, button: 0, buttons: 1, bubbles: true,
+          }));
+        } finally { forwardingTouch = false; }
+      }
+      forwardedPointers.add(event.pointerId);
+      return;
+    }
+    // Mixed mouse/touch input and additional fingers cancel the current stream.
     if (heldPointers.size !== 1 || !options.enabled()) { cancel(undefined, true); event.stopImmediatePropagation(); return; }
     if (!event.isPrimary || event.button !== 0 || modified(event) || options.cameraKeysHeld()) { forwardedPointers.add(event.pointerId); candidate = undefined; return; }
     const id = pick(event.clientX, event.clientY);
@@ -130,6 +154,7 @@ export function createMechanismInput(options: InputOptions) {
     candidate = id ? { id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, position: camera.position.clone(), quaternion: camera.quaternion.clone() } : undefined;
   }, { capture: true, signal });
   canvas.addEventListener('pointermove', event => {
+    if (touchPointers.has(event.pointerId)) touchPointers.set(event.pointerId, event);
     lastX = event.clientX; lastY = event.clientY; dirty = true;
     if (gesture?.pointerId === event.pointerId) {
       event.preventDefault(); event.stopImmediatePropagation();
@@ -139,7 +164,7 @@ export function createMechanismInput(options: InputOptions) {
       if (gesture.id === 'joystick' && gesture.dragged && !movingStick()) tiltFromScreen(x / 65, y / 65, gesture);
       return;
     }
-    if (heldPointers.size > 1 || (event.buttons !== 0 && !forwardedPointers.has(event.pointerId))) { event.stopImmediatePropagation(); return; }
+    if ((heldPointers.size > 1 && touchPointers.size !== heldPointers.size) || (event.buttons !== 0 && !forwardedPointers.has(event.pointerId))) { event.stopImmediatePropagation(); return; }
     if (!candidate || candidate.pointerId !== event.pointerId) return;
     const travel = Math.hypot(event.clientX - candidate.x, event.clientY - candidate.y);
     if (travel > 5 || modified(event) || changedFrom(candidate.position, candidate.quaternion)) { candidate = undefined; return; }
@@ -147,6 +172,7 @@ export function createMechanismInput(options: InputOptions) {
     event.stopImmediatePropagation();
   }, { capture: true, signal });
   canvas.addEventListener('pointerup', event => {
+    touchPointers.delete(event.pointerId);
     if (gesture?.pointerId === event.pointerId) {
       const down = gesture; gesture = undefined;
       heldPointers.delete(event.pointerId);
@@ -168,7 +194,7 @@ export function createMechanismInput(options: InputOptions) {
   canvas.addEventListener('lostpointercapture', event => {
     // A normal up has already removed this ID. Unexpected capture loss must also end OrbitControls.
     if (forwardedPointers.has(event.pointerId) || gesture?.pointerId === event.pointerId) cancel();
-    candidate = undefined; heldPointers.delete(event.pointerId);
+    candidate = undefined; heldPointers.delete(event.pointerId); touchPointers.delete(event.pointerId);
   }, { signal });
   canvas.addEventListener('pointerleave', () => { hover = undefined; lastX = lastY = -1; dirty = true; }, { signal });
   canvas.addEventListener('wheel', () => { cancel(); dirty = true; }, { capture: true, passive: true, signal });

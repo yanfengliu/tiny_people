@@ -24,6 +24,7 @@
     "check:buttons": "node scripts/check-button-markings.mjs",
     "check:physical-controls": "node scripts/check-physical-controls.mjs",
     "check:physical-input": "node scripts/check-physical-input.mjs",
+    "check:touch-input": "node scripts/check-touch-input.mjs",
     "check:exploration": "node scripts/check-exploration.mjs",
     "check:mechanism-state": "node scripts/check-mechanism-state.mjs",
     "check:mechanisms": "node scripts/check-mechanisms.mjs",
