@@ -73,6 +73,7 @@ Run Vite-based gates sequentially within one checkout so their dependency-cache 
 - `npm run typecheck` — `tsc --noEmit`.
 - `npm run build` — typecheck, then the Vite production build into ignored `dist/`.
 - `npm run audit` — `npm audit --audit-level=moderate`; a dependency change re-runs it.
+- `node scripts/check-process-ownership.mjs` — both pure JavaScript and PowerShell descendant predicates: exact live-parent identity, UTC birth and task-root bounds, plus executed older-child, absent-parent and reused-PID controls. This launches no application and performs no process observation or termination.
 - `npm run check:routes` — all seven routes against the static geometry: footprints, stationary placements and 240 seconds of actor-pair separation.
 - `npm run check:plants` — actual plant meshes across variant seeds 0–4 at two scales, including closed leaf/pot edges, finite attributes, shared materials and soil/root contact with a raised-root negative control.
 - `npm run check:residents` — shoe soles on slopes, seated clearance and instancing capacity, with its own positive control.

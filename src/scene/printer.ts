@@ -3,6 +3,8 @@ import { brushedMetal, directionalWood, glazedCeramic, grainedPlastic, mattePape
 import { createPlant } from './plants';
 import { createPrinterGarden } from './printer-garden';
 import { createPrinterAccess } from './printer-access';
+import { createPrinterPaper } from './printer-paper';
+import { createPrinterSlideCouplingGeometry, createPrinterSlideCurve, createPrinterSlideExitDeckGeometry, createPrinterSlideGeometry, printerExternalFlights, printerSlideCoupling, printerSlideEntryFloor } from './printer-travel';
 import { batchPrinter, printerBox as box, printerCable as cable, printerCylinder as cylinder, printerMesh as mesh, printerRod as rod } from './printer-geometry';
 
 export type PrinterPartId = 'scanner' | 'drawer' | 'print';
@@ -12,6 +14,7 @@ export interface PrinterPart {
   initialProgress?: number;
   pickMeshes: THREE.Mesh[];
   setProgress(progress: number): void;
+  recordTravel?(from: number, to: number): void;
 }
 
 export const printerFloors = [3.5, 5.0, 6.5, 9.0] as const;
@@ -256,6 +259,8 @@ export function createPrinterWorld() {
   }
   const core: Bounds = [-2.95, -1.25, .10, 9.01, -2.28, .32];
   const floorExits: Bounds[] = [3.5, 5, 6.5].map(y => [-1.27, .26, y, y + .85, .04, .38]);
+  const slideExit: Bounds = [-3.70, -2.90, 4.978, 5.85, .04, 1.48];
+  const slideMouth: Bounds = [-3.70, -3.18, 4.978, 6.44, .59, 2.03];
   const roofOpening: Bounds = [-1.88, -1.27, 8.70, 9.10, -2.35, -.62];
 
   // The machine is a solid rounded copier first. Rooms occupy its right flank, not its full width.
@@ -266,8 +271,8 @@ export function createPrinterWorld() {
   }
   carvedBox(lowerBody, blueDark, [-3.7, 3.7, .25, .57, -2.59, 2.59], [core, [-2.89, -2.25, .10, .95, -2.61, -2.18]], 'printer-base-core-carve', .04);
   box(lowerBody, blue, [3.72, 2.93, 5.14], [1.83, 1.97, -.015], .24).name = 'drawer-concealed-housing';
-  carvedBox(lowerBody, blue, [-3.66, .20, .45, 7.59, -2.575, 1.235], [core, ...floorExits, [-2.89, -2.25, .10, .95, -2.61, -2.18]], 'printer-left-core-housing', .022);
-  box(lowerBody, blue, [.32, 7.14, 1.40], [-3.50, 4.02, 1.91], .12);
+  carvedBox(lowerBody, blue, [-3.66, .20, .45, 7.59, -2.575, 1.235], [core, ...floorExits, slideExit, slideMouth, [-2.89, -2.25, .10, .95, -2.61, -2.18]], 'printer-left-core-housing', .022);
+  carvedBox(lowerBody, blue, [-3.66, -3.34, .45, 7.59, 1.21, 2.61], [slideExit, slideMouth], 'printer-left-front-pier', .022);
   box(lowerBody, blueDark, [.30, 3.63, 1.32], [-.12, 2.39, 1.89], .065);
   carvedBox(lowerBody, blue, [-3.67, 3.67, 3.15, 3.47, -2.56, 2.54], [core], 'printer-middle-core-carve', .022);
   carvedBox(lowerBody, blue, [-3.685, .245, 7.47, 8.01, -2.56, 1.22], [core], 'printer-upper-core-carve', .022);
@@ -487,21 +492,20 @@ export function createPrinterWorld() {
 
   // The stair flights cross the coral facade and terminate on attached corner landings.
   const stairs = namedFeature('external-stairs');
-  for (let flight = 0; flight < 2; flight++) {
-    const y = 3.5 + flight * 1.5, start = flight === 0 ? 3.30 : .60, end = flight === 0 ? .60 : 3.30;
-    const lane = 3.84 + flight * .71;
-    for (let step = 1; step <= 25; step++) {
-      const t = step / 25, x = THREE.MathUtils.lerp(start, end, t), sy = y + t * 1.5, direction = end > start ? 1 : -1;
-      box(stairs, coral, [.108, .049, .66], [x, sy - .0355, lane], 0).name = `printer-stair-riser-${flight}-${step}`;
-      box(stairs, coral, [.135, .011, .66], [x - direction * .0135, sy - .0055, lane], 0).name = `printer-stair-tread-${flight}-${step}`;
-      box(stairs, cream, [.012, .006, .64], [x - direction * .075, sy + .003, lane], 0).name = `printer-stair-nosing-${flight}-${step}`;
+  for (const definition of printerExternalFlights) {
+    const { index: flight, bottom: y, from: start, to: end, lane, count, rise, width, going } = definition;
+    for (let step = 1; step <= count; step++) {
+      const x = THREE.MathUtils.lerp(start, end, step / count), sy = y + step * rise, direction = end > start ? 1 : -1;
+      box(stairs, coral, [going, .049, width], [x, sy - .0355, lane], 0).name = `printer-stair-riser-${flight}-${step}`;
+      box(stairs, coral, [.135, .011, width], [x - direction * .0135, sy - .0055, lane], 0).name = `printer-stair-tread-${flight}-${step}`;
+      box(stairs, cream, [.012, .006, width - .02], [x - direction * .075, sy + .003, lane], 0).name = `printer-stair-nosing-${flight}-${step}`;
     }
     for (const [side, z] of [[0, lane - .33], [1, lane + .33]]) {
       rod(stairs, blueDark, new THREE.Vector3(start, y - .07, z), new THREE.Vector3(end, y + 1.43, z), .027).name = `printer-stair-stringer-${flight}-${side}`;
       rod(stairs, blueDark, new THREE.Vector3(start, y + .35, z), new THREE.Vector3(end, y + 1.85, z), .014).name = `printer-stair-hand-${flight}-${side}`;
       rod(stairs, blueDark, new THREE.Vector3(start, y + .053, z), new THREE.Vector3(end, y + 1.553, z), .010).name = `printer-stair-bottom-${flight}-${side}`;
       for (let post = 0; post <= 50; post++) {
-        const t = post / 50, x = THREE.MathUtils.lerp(start, end, t), surface = y + Math.ceil(post / 2) * .06, top = y + t * 1.5 + .35, height = top - surface + .008;
+        const t = post / (count * 2), x = THREE.MathUtils.lerp(start, end, t), surface = y + Math.ceil(post / 2) * rise, top = y + t * (definition.top - y) + .35, height = top - surface + .008;
         cylinder(stairs, blueDark, .009, height, [x, surface - .008 + height / 2, z], .009, 6).name = `printer-stair-infill-${flight}-${side}-${post}`;
       }
     }
@@ -521,17 +525,20 @@ export function createPrinterWorld() {
     for (let post = 0; post <= sidePosts; post++) cylinder(stairs, blueDark, .009, .35, [outside, y + .175, 3.45 + (endZ - 3.45) * post / sidePosts], .009, 6).name = `printer-stair-landing-infill-${level}-side-${post}`;
     {
       if (level < 2) {
-        box(stairs, coral, [.225, .12, .075], [3.4025, y - .06, 2.6325], 0).name = `printer-stair-corner-gap-${level}`;
-        box(stairs, coral, [.835, .12, .805], [3.9325, y - .06, 2.9975], 0).name = `printer-stair-corner-landing-${level}`;
-      } else box(stairs, blueLight, [.835, .12, .73], [3.9325, y - .06, 3.035], 0).name = 'printer-stair-corner-landing-2';
+      const shape = new THREE.Shape(); shape.moveTo(3.29, 2.595); shape.lineTo(4.35, 2.595); shape.lineTo(4.35, 3.35); shape.lineTo(3.515, 3.35); shape.lineTo(3.515, 2.67); shape.lineTo(3.29, 2.67); shape.closePath();
+      const geometry = new THREE.ExtrudeGeometry(shape, { depth: .12, bevelEnabled: false, steps: 1 }); geometry.rotateX(Math.PI / 2);
+      mesh(stairs, coral, geometry, [0, y, 0]).name = `printer-stair-corner-landing-${level}`;
+    } else box(stairs, blueLight, [.835, .12, .68], [3.9325, y - .06, 3.01], 0).name = 'printer-stair-corner-landing-2';
       for (const rise of [.05, .35]) {
-        box(stairs, blueDark, [.65, .022, .024], [3.985, y + rise, 3.38], .005).name = `printer-stair-corner-guard-${level}-front`;
-        box(stairs, blueDark, [.024, .022, .78], [4.33, y + rise, 2.99], .005).name = `printer-stair-corner-guard-${level}-side`;
+        const start = level === 1 ? 3.48 : 3.66;
+        box(stairs, blueDark, [4.33 - start, .022, .024], [(4.33 + start) / 2, y + rise, 3.43], .005).name = `printer-stair-corner-guard-${level}-front`;
+        box(stairs, blueDark, [.024, .022, .82], [4.33, y + rise, 3.02], .005).name = `printer-stair-corner-guard-${level}-side`;
         const edge = level === 0 ? 4.13 : level === 1 ? 4.28 : 4.03, back = level === 2 ? 2.685 : 2.61;
         box(stairs, blueDark, [4.33 - edge, .022, .024], [(4.33 + edge) / 2, y + rise, back], .005).name = `printer-stair-corner-guard-${level}-back`;
       }
-      for (let post = 0; post <= 13; post++) cylinder(stairs, blueDark, .009, .35, [3.66 + post * .05, y + .175, 3.38], .009, 6).name = `printer-stair-corner-infill-${level}-front-${post}`;
-      for (let post = 0; post <= 15; post++) cylinder(stairs, blueDark, .009, .35, [4.33, y + .175, 2.62 + post * .05], .009, 6).name = `printer-stair-corner-infill-${level}-side-${post}`;
+      const frontStart = level === 1 ? 3.48 : 3.66, frontPosts = Math.ceil((4.33 - frontStart) / .05);
+      for (let post = 0; post <= frontPosts; post++) cylinder(stairs, blueDark, .009, .35, [frontStart + (4.33 - frontStart) * post / frontPosts, y + .175, 3.43], .009, 6).name = `printer-stair-corner-infill-${level}-front-${post}`;
+      for (let post = 0; post <= 16; post++) cylinder(stairs, blueDark, .009, .35, [4.33, y + .175, 2.62 + post * .05], .009, 6).name = `printer-stair-corner-infill-${level}-side-${post}`;
       const backEdge = level === 0 ? 4.13 : level === 1 ? 4.28 : 4.03, backZ = level === 2 ? 2.685 : 2.61, backPosts = Math.ceil((4.33 - backEdge) / .05);
       for (let post = 0; post <= backPosts; post++) cylinder(stairs, blueDark, .009, .35, [backEdge + (4.33 - backEdge) * post / backPosts, y + .175, backZ], .009, 6).name = `printer-stair-corner-infill-${level}-back-${post}`;
     }
@@ -586,6 +593,10 @@ export function createPrinterWorld() {
   const roof = namedFeature('rooftop-home');
   carvedBox(roof, blue, [-3.60, -.95, 8.854, 8.974, -2.45, 2.15], [roofOpening], 'printer-roof-structure');
   carvedBox(roof, woodLight, [-3.555, -.995, 8.978, 9.0, -2.37, 2.07], [roofOpening], 'printer-roof-wood');
+  // A short joined tongue supports the mouth beside the fixed gardener, without moving the station.
+  const entryLeft = printerSlideEntryFloor[0] - .10;
+  box(roof, blue, [-3.60 - entryLeft, .12, .40], [(entryLeft - 3.60) / 2, 8.914, printerSlideEntryFloor[2]], 0).name = 'printer-slide-entry-structure';
+  box(roof, woodLight, [-3.555 - entryLeft, .022, .40], [(entryLeft - 3.555) / 2, 8.989, printerSlideEntryFloor[2]], 0).name = 'printer-slide-entry-floor';
   box(roof, coral, [2.46, .15, 2.48], [-2.36, 10.59, -1.23], .045);
   box(roof, roomWall, [2.43, 1.47, .08], [-2.33, 9.77, -2.40], .02);
   box(roof, mustard, [.10, 1.51, 2.43], [-3.55, 9.775, -1.21], .023);
@@ -621,84 +632,33 @@ export function createPrinterWorld() {
 
   // Oversized front-left corrugated return, as seen alongside the right homes in the reference view.
   const duct = namedFeature('looping-duct');
-  const ductCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(-3.42, 9.23, 1.17), new THREE.Vector3(-4.46, 9.38, 1.22), new THREE.Vector3(-4.90, 8.21, 1.27), new THREE.Vector3(-4.92, 5.22, 1.31), new THREE.Vector3(-4.22, 4.62, 1.33), new THREE.Vector3(-3.43, 4.82, 1.31)]);
-  mesh(duct, blue, new THREE.TubeGeometry(ductCurve, 80, .86, 18, false));
+  const ductCurve = createPrinterSlideCurve();
+  mesh(duct, blue, createPrinterSlideGeometry()).name = 'printer-slide-hollow-wall';
   for (let i = 0; i < 66; i++) { const t = i / 65, collar = mesh(duct, blueDark, new THREE.TorusGeometry(.867, .037, 5, 24)); collar.position.copy(ductCurve.getPointAt(t)); collar.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), ductCurve.getTangentAt(t)); }
-  for (const [y, z] of [[9.23, 1.17], [4.82, 1.31]]) { const coupling = cylinder(duct, blueLight, .96, .16, [-3.39, y, z], .96, 24); coupling.rotation.z = Math.PI / 2; for (let i = 0; i < 9; i++) screw(duct, -3.49, y + Math.sin(i * Math.PI * 2 / 9) * .88, z + Math.cos(i * Math.PI * 2 / 9) * .88, true); }
+  for (const index of [0, 1] as const) {
+    const { center: at, quaternion } = printerSlideCoupling(index);
+    const coupling = mesh(duct, blueLight, createPrinterSlideCouplingGeometry()); coupling.name = `printer-slide-annular-coupling-${index}`; coupling.position.copy(at); coupling.quaternion.copy(quaternion);
+    for (let i = 0; i < 9; i++) screw(duct, at.x, at.y + Math.sin(i * Math.PI * 2 / 9) * .88, at.z + Math.cos(i * Math.PI * 2 / 9) * .88, true);
+  }
   finishFeature(duct);
   duct.children.forEach(child => { if (child instanceof THREE.Mesh && child.material === blueDark) child.castShadow = false; });
+  // The lower mouth opens into a floor-height service passage, then the existing core landing.
+  mesh(scenery, woodLight, createPrinterSlideExitDeckGeometry()).name = 'printer-slide-exit-floor';
+  // Pipe and housing enclose the other sides; only these two cut edges overlook the lower bay.
+  for (const [label, a, b] of [
+    ['front', [-3.35, 1.495], [-2.96, 1.495]],
+    ['right', [-2.96, 1.495], [-2.96, .32]],
+  ] as const) {
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]), count = Math.ceil(length / .065), alongX = label === 'front';
+    for (const [name, rise] of [['top', .34], ['middle', .17]] as const) box(scenery, metal, [alongX ? length : .018, .018, alongX ? .018 : length], [(a[0] + b[0]) / 2, 5 + rise, (a[1] + b[1]) / 2], 0).name = `printer-slide-exit-${label}-${name}`;
+    for (let i = 0; i <= count; i++) box(scenery, metal, [.009, .34, .009], [THREE.MathUtils.lerp(a[0], b[0], i / count), 5.17, THREE.MathUtils.lerp(a[1], b[1], i / count)], 0).name = `printer-slide-exit-${label}-post-${i}`;
+  }
   box(scenery, cream, [.55, 3.35, 1.37], [-3.40, 9.16, -.84], .065);
   for (let i = 0; i < 9; i++) box(scenery, ink, [.016, .029, .64], [-3.69, 9.27 - i * .075, -.85], .006);
   for (let i = 0; i < 7; i++) cable(scenery, [ink, gold, blueLight, coralDark][i % 4], [[-3.71, 7.98, -.58 + i * .09], [-4.00, 7.52, -.42 + i * .08], [-3.90, 6.75 + i % 3 * .10, .08], [-3.59, 6.54, .22]], .020, 20);
 
-  // A broad continuous drawing sheet emerges from within the dark bay, not from a balcony face.
-  function paint(parent: THREE.Group, material: THREE.Material, size: [number, number, number], at: [number, number, number], _radius = 0) {
-    const stroke = mesh(parent, material, new THREE.PlaneGeometry(size[0], size[2]), at); stroke.rotation.x = -Math.PI / 2; return stroke;
-  }
-  function paintRing(radius: number, strokeWidth: number, segments: number, arc = Math.PI * 2) {
-    const vertices: number[] = [], indices: number[] = [];
-    for (let i = 0; i <= segments; i++) for (const side of [-1, 1]) { const angle = i / segments * arc, r = radius + side * strokeWidth; vertices.push(Math.cos(angle) * r, Math.sin(angle) * r, 0); }
-    for (let i = 0; i < segments; i++) { const a = i * 2; indices.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
-    const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3)); geometry.setIndex(indices); geometry.computeVertexNormals(); return geometry;
-  }
-  const paper = new THREE.Group(); paper.name = 'paper-waterfall'; paper.position.x = -.15; group.add(paper);
-  const paperCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(-1.53, 3.79, 2.52), new THREE.Vector3(-1.53, 3.88, 3.05), new THREE.Vector3(-1.53, 3.28, 3.62), new THREE.Vector3(-1.53, 1.15, 4.23), new THREE.Vector3(-1.53, .020, 5.28), new THREE.Vector3(-1.53, .009, 7.06)]);
-  const width = 2.68, positions: number[] = [], uv: number[] = [], indices: number[] = [], rows = 100;
-  function paperPoint(t: number, across: number) { const point = paperCurve.getPointAt(THREE.MathUtils.clamp(t, 0, 1)); point.x += across * width / 2; point.y = Math.max(.008, point.y + Math.sin(across * Math.PI) * .011 * Math.sin(t * Math.PI)); return point; }
-  for (let row = 0; row <= rows; row++) for (const side of [-1, 1]) { const t = row / rows, p = paperPoint(t, side); positions.push(p.x, p.y, p.z); uv.push((side + 1) / 2, t); }
-  for (let row = 0; row < rows; row++) { const a = row * 2; indices.push(a, a + 3, a + 1, a, a + 2, a + 3); }
-  const paperGeometry = new THREE.BufferGeometry(); paperGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); paperGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); paperGeometry.setIndex(indices); paperGeometry.computeVertexNormals();
-  const paperMaterial = white.clone(); paperMaterial.side = THREE.DoubleSide; paperMaterial.name = 'paper-ribbon'; mesh(paper, paperMaterial, paperGeometry);
-  for (let row = 0; row < 12; row++) {
-    const large = [2, 6, 10].includes(row);
-    for (let column = 0; column < (large ? 1 : 2); column++) {
-    const t = .055 + row * .076, across = large ? 0 : -.47 + column * .94, length = paperCurve.getLength(), diagram = new THREE.Group(); paper.add(diagram);
-    const planWidth = large ? 2.16 : .93 + row % 2 * .04, depth = large ? .51 : .24 + row % 3 * .065, kind = (row * 3 + column) % 5;
-    for (const x of [-planWidth / 2, planWidth / 2]) paint(diagram, ink, [.012, .004, depth], [x, 0, 0], 0);
-    for (const z of [-depth / 2, depth / 2]) paint(diagram, ink, [planWidth, .004, .012], [0, 0, z], 0);
-    if (kind === 0 || kind === 4) {
-      const bays = large ? 8 : 4, span = planWidth / bays;
-      for (let wall = 0; wall < bays; wall++) {
-        const x = -planWidth / 2 + span * (wall + .5), offset = (wall + row) % 3 * .021;
-        paint(diagram, ink, [.011, .004, depth * (.50 + wall % 3 * .13)], [x, .002, offset], 0);
-        paint(diagram, ink, [span * .83, .004, .009], [x + span * .14, .002, wall % 2 ? depth * .22 : -depth * .24], 0);
-        const doorway = mesh(diagram, ink, paintRing(span * .24, .003, 12, Math.PI / 2), [x + span * .09, .002, depth * .09]); doorway.rotation.x = Math.PI / 2;
-        for (let hatch = 0; hatch < 4; hatch++) paint(diagram, ink, [span * .28, .004, .006], [x - span * .24, .002, -depth * .36 + hatch * depth * .072], 0);
-      }
-    } else if (kind === 1) {
-      const windows = large ? 10 : 5;
-      for (let story = 0; story < 3; story++) {
-        const z = -depth * .31 + story * depth * .29; paint(diagram, ink, [planWidth * .92, .004, .008], [0, .002, z + depth * .11], 0);
-        for (let window = 0; window < windows; window++) { const x = -planWidth * .42 + window / (windows - 1) * planWidth * .84; paint(diagram, blueLight, [planWidth / windows * .48, .004, depth * .13], [x, .002, z], 0); paint(diagram, ink, [.006, .004, depth * .13], [x, .006, z], 0); }
-      }
-    } else if (kind === 2) {
-      for (let wheel = 0; wheel < 3; wheel++) {
-        const x = -planWidth * .29 + wheel * planWidth * .29, radius = depth * (.20 + wheel % 2 * .05);
-        for (const r of [radius, radius * .47]) { const ring = mesh(diagram, ink, paintRing(r, .003, 22), [x, .002, 0]); ring.rotation.x = Math.PI / 2; }
-        paint(diagram, ink, [radius * 1.8, .004, .006], [x, .002, 0], 0); paint(diagram, ink, [.006, .004, radius * 1.8], [x, .002, 0], 0);
-        for (let tooth = 0; tooth < 8; tooth++) { const angle = tooth * Math.PI / 4, tick = paint(diagram, ink, [.026, .004, .008], [x + Math.cos(angle) * radius * 1.18, .002, Math.sin(angle) * radius * 1.18], 0); tick.rotation.y = -angle; }
-      }
-    } else {
-      const modules = large ? 8 : 4;
-      for (let module = 0; module < modules; module++) {
-        const x = -planWidth * .42 + module / (modules - 1) * planWidth * .84, z = module % 2 ? depth * .17 : -depth * .17;
-        paint(diagram, blueLight, [planWidth / modules * .48, .004, depth * .24], [x, .002, z], 0);
-        for (const offset of [-1, 1]) paint(diagram, ink, [planWidth / modules * .71, .004, .007], [x, .004, z + offset * depth * .14], 0);
-        paint(diagram, ink, [.006, .004, depth * .64], [x + planWidth / modules * .35, .002, 0], 0);
-        for (let trace = 0; trace < 3; trace++) paint(diagram, ink, [.006, .004, depth * .34], [x - planWidth / modules * .18 + trace * .023, .006, z], 0);
-      }
-    }
-    for (let mark = 0; mark < (large ? 16 : 7); mark++) paint(diagram, ink, [.006, .004, .036], [-planWidth * .46 + mark / (large ? 15 : 6) * planWidth * .92, .002, depth / 2 + .033], 0);
-    paint(diagram, ink, [planWidth * .94, .004, .006], [0, .002, depth / 2 + .044], 0);
-    for (const stroke of [...diagram.children]) {
-      if (!(stroke instanceof THREE.Mesh)) continue; stroke.updateMatrix(); const attribute = stroke.geometry.attributes.position;
-      for (let vertex = 0; vertex < attribute.count; vertex++) { const local = new THREE.Vector3().fromBufferAttribute(attribute, vertex).applyMatrix4(stroke.matrix), along = t + local.z / length, point = paperPoint(along, across + local.x / (width / 2)), tangent = paperCurve.getTangentAt(THREE.MathUtils.clamp(along, 0, 1)); point.addScaledVector(new THREE.Vector3(0, tangent.z, -tangent.y).normalize(), .006 + local.y); attribute.setXYZ(vertex, point.x, point.y, point.z); }
-      stroke.geometry.computeVertexNormals(); stroke.position.set(0, 0, 0); stroke.quaternion.identity(); stroke.scale.set(1, 1, 1); paper.add(stroke);
-    }
-    diagram.removeFromParent();
-    }
-  }
-  const paperBatches = batchPrinter(paper); paperBatches.forEach(batch => { batch.castShadow = batch.material === paperMaterial; }); paper.userData.printerFeature = true;
+  // Retained-time feed, release and bounded ground stacking share reusable paper buffers.
+  const paper = createPrinterPaper({ paper: white, ink, blue: blueLight }); group.add(paper.group);
 
   // The lower-right storefront is separate from the upper cyan wrap and has its own occupied roof.
   const storefront = namedFeature('lower-cyan-storefront');
@@ -779,8 +739,8 @@ export function createPrinterWorld() {
   const parts: PrinterPart[] = [
     { id: 'scanner', label: 'Close scanner lid', initialProgress: 1, pickMeshes: scannerMeshes, setProgress(progress) { scanner.rotation.x = -THREE.MathUtils.clamp(progress, 0, 1) * Math.PI * .389; } },
     { id: 'drawer', label: 'Pull paper drawer', pickMeshes: drawerMeshes, setProgress(progress) { drawer.position.z = THREE.MathUtils.clamp(progress, 0, 1) * 1.25; } },
-    { id: 'print', label: 'Feed printed paper', pickMeshes: printButtonMeshes, setProgress(progress) { printProgress = THREE.MathUtils.clamp(progress, 0, 1); printButton.position.y = -printProgress * .025; paper.position.z = printProgress * .15; } },
+    { id: 'print', label: 'Feed printed paper', pickMeshes: printButtonMeshes, setProgress(progress) { printProgress = THREE.MathUtils.clamp(progress, 0, 1); printButton.position.y = -printProgress * .025; paper.setProgress(printProgress); }, recordTravel(from, to) { paper.recordTravel(from, to); } },
   ];
   parts[0].setProgress(1); group.userData.printerParts = parts; group.userData.floorHeights = [3.5, 5.0, 6.5, 9.0]; group.userData.routeBounds = { x: [.25, 3.50], z: [2.65, 3.35] };
-  return { group, parts, update(time: number) { const pulse = .87 + Math.sin(time * 2.1) * .13; indicator.scale.setScalar(1 + printProgress * .20); indicatorMaterial.emissiveIntensity = 1.1 + printProgress * pulse; } };
+  return { group, parts, paperSnapshot: paper.snapshot, update(time: number) { paper.update(time); const pulse = .87 + Math.sin(time * 2.1) * .13; indicator.scale.setScalar(1 + printProgress * .20); indicatorMaterial.emissiveIntensity = 1.1 + printProgress * pulse; } };
 }

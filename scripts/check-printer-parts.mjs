@@ -10,6 +10,9 @@
 // Paper/ink are emitted open surfaces: exact triangle crossing/proximity and enclosure inside
 // closed obstacles remain checked. A closed obstacle cannot be "inside" an open sheet.
 // Native reference comparison remains required; proportion checks cannot certify exact illustration fidelity.
+// Transit additionally covers actual annular-mouth clearance, a closed positive-volume tube wall,
+// 401 wall-contact samples and .025-spaced walking footprints on the shared course. This is geometry
+// support coverage, not a certificate for animated bodies; printer-life owns that separate bound.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -17,7 +20,7 @@ import * as THREE from 'three';
 import { createServer } from 'vite';
 
 const output = 'output/printer-parts';
-const paths = ['src/scene/printer.ts', 'src/scene/printer-geometry.ts', 'src/scene/printer-garden.ts', 'src/scene/printer-access.ts', 'src/scene/printer-life.ts', 'src/scene/residents.ts', 'src/scene/plants.ts', 'src/scene/materials.ts', 'src/scene/mechanism-clearance.ts', 'src/scene/physical-audit.ts', 'scripts/check-printer-parts.mjs'];
+const paths = ['src/main.ts', 'src/scene/printer.ts', 'src/scene/printer-geometry.ts', 'src/scene/printer-garden.ts', 'src/scene/printer-access.ts', 'src/scene/printer-travel.ts', 'src/scene/printer-paper.ts', 'src/scene/printer-life.ts', 'src/scene/printer-transit.ts', 'src/scene/residents.ts', 'src/scene/plants.ts', 'src/scene/materials.ts', 'src/scene/mechanism-state.ts', 'src/scene/mechanism-clearance.ts', 'src/scene/physical-audit.ts', 'scripts/check-printer-parts.mjs'];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const report = { pass: false, bounds: { uniformPoses: 65, promenadeFloors: [3.5, 5.0, 6.5], roofFloor: 9.0, referenceMap: 'docs/work/5_printer-neighborhood/station-contract.md' }, negativeControls: [], contacts: [] };
 const geometries = new Set(), materials = new Set();
@@ -31,6 +34,15 @@ function allMeshes(root) {
   return result;
 }
 
+function submittedRange(geometry) {
+  const capacity = geometry.index?.count ?? geometry.attributes.position.count, start = geometry.drawRange.start;
+  const count = Math.min(capacity - start, geometry.drawRange.count);
+  assert.ok(Number.isInteger(start) && start >= 0 && Number.isInteger(count) && count >= 0 && start % 3 === 0 && count % 3 === 0, 'Submitted triangle range must be legal.');
+  return { start, count, end: start + count };
+}
+
+function rendered(mesh) { for (let object = mesh; object; object = object.parent) if (!object.visible) return false; return true; }
+
 function featureBounds(group) {
   assert.ok(group && group.visible, 'Required rendered printer feature must remain visible.');
   const bounds = new THREE.Box3(), point = new THREE.Vector3();
@@ -42,7 +54,8 @@ function featureBounds(group) {
     for (let instance = 0; instance < instances; instance++) {
       const transform = mesh.matrixWorld.clone();
       if (mesh instanceof THREE.InstancedMesh) { const local = new THREE.Matrix4(); mesh.getMatrixAt(instance, local); transform.multiply(local); }
-      for (let index = 0; index < positions.count; index++) { bounds.expandByPoint(point.fromBufferAttribute(positions, index).applyMatrix4(transform)); count++; }
+      const range = submittedRange(mesh.geometry);
+      for (let index = range.start; index < range.end; index++) { bounds.expandByPoint(point.fromBufferAttribute(positions, mesh.geometry.index ? mesh.geometry.index.getX(index) : index).applyMatrix4(transform)); count++; }
     }
   });
   assert.ok(count > 100, 'A reference feature must contain actual emitted geometry.');
@@ -118,9 +131,11 @@ function lowerMassSamples(root) {
 // Slice each authored solid from the actual emitted material batch. Preserve its exact triangles.
 function pieces(root) {
   const cached = authoredPieces.get(root);
-  if (cached) { refresh(cached); return cached; }
+  // Dynamic paper changes both the submitted range and its triangles at each retained-time pose.
+  if (cached && !allMeshes(root).some(source => source.geometry.attributes.position.usage === THREE.DynamicDrawUsage)) { refresh(cached); return cached; }
   const result = [];
   for (const source of allMeshes(root)) {
+    if (!rendered(source)) continue;
     if (source instanceof THREE.InstancedMesh) {
       for (let instance = 0; instance < source.count; instance++) {
         const geometry = source.geometry.index ? source.geometry.toNonIndexed() : source.geometry.clone();
@@ -132,14 +147,16 @@ function pieces(root) {
       }
       continue;
     }
-    const positions = source.geometry.attributes.position, ranges = source.geometry.userData.solidRanges;
+    const positions = source.geometry.attributes.position, ranges = source.geometry.userData.solidRanges, submitted = submittedRange(source.geometry);
     assert.ok(Array.isArray(ranges) && ranges.length, 'Printer batches must retain complete authored triangle ranges.');
     let cursor = 0;
     for (const range of ranges) {
       assert.equal(range.start, cursor); assert.ok(range.count > 0 && range.count % 3 === 0); cursor += range.count;
+      const start = Math.max(range.start, submitted.start), end = Math.min(range.start + range.count, submitted.end);
+      if (end <= start) continue;
       const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions.array.slice(range.start * 3, (range.start + range.count) * 3), 3));
-      geometry.userData.solidRanges = [{ start: 0, count: range.count }];
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions.array.slice(start * 3, end * 3), 3));
+      geometry.userData.solidRanges = [{ start: 0, count: end - start }];
       geometries.add(geometry);
       const piece = new THREE.Mesh(geometry, source.material); piece.matrixAutoUpdate = false; piece.matrixWorld.copy(source.matrixWorld);
       piece.name = range.name || source.name; piece.userData.source = source; piece.userData.range = range;
@@ -156,6 +173,7 @@ function refresh(pieces) { for (const piece of pieces) {
 } }
 
 function movingBatches(root) {
+  if (root.name === 'paper-waterfall') return pieces(root);
   return allMeshes(root).map(source => {
     const piece = new THREE.Mesh(source.geometry, source.material); piece.matrixAutoUpdate = false; piece.matrixWorld.copy(source.matrixWorld); piece.name = source.name;
     piece.userData.source = source; return piece;
@@ -262,13 +280,34 @@ function assertFloorPlanes() {
   return caps.length;
 }
 function assertPaperTail() {
-  const paper = world.group.getObjectByName('paper-waterfall'), surface = allMeshes(paper).find(mesh => mesh.material.name === 'paper-ribbon');
+  const paper = world.group.getObjectByName('paper-waterfall'), surface = pieces(paper).find(mesh => mesh.name === 'paper-current-sheet');
   assert.ok(surface, 'Actual printed paper surface is required.');
   const points = [], p = surface.geometry.attributes.position;
   for (let i = 0; i < p.count; i++) { const point = new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(surface.matrixWorld); if (point.z >= 6.85) points.push(point); }
   const tail = new THREE.Box3().setFromPoints(points);
-  assert.ok(points.length >= 8 && tail.max.y <= .015 && tail.min.y >= -.0001 && tail.getSize(new THREE.Vector3()).x >= 2.6, 'Paper tail must remain broadly in ground contact throughout feed travel.');
+  assert.ok(points.length >= 8 && tail.max.y <= .015 && tail.min.y >= -.0001 && tail.getSize(new THREE.Vector3()).x >= 2.6, 'Initial full paper tail must remain broadly in ground contact.');
   return { vertices: points.length, min: tail.min.toArray(), max: tail.max.toArray() };
+}
+
+function assertPaperPhase() {
+  const state = world.paperSnapshot(), actual = pieces(world.group.getObjectByName('paper-waterfall'));
+  const current = actual.find(piece => piece.name === 'paper-current-sheet'), top = actual.find(piece => piece.name === 'paper-stack-top');
+  const bounds = piece => new THREE.Box3().setFromObject(piece);
+  for (const piece of actual) {
+    const box = bounds(piece);
+    assert.ok(box.min.x >= -3.021 && box.max.x <= -.339 && box.min.y >= -.00001 && box.max.y < 4.4 && box.max.z <= 7.061, 'Actual submitted paper must retain its width and bounded printer/ground footprint.');
+  }
+  if (state.phase === 'feed' && state.feed > .000001) {
+    assert.ok(current, 'Feeding requires an actual submitted current page.');
+    const p = current.geometry.attributes.position, outlet = [];
+    for (let i = 0; i < p.count; i++) { const point = new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(current.matrixWorld); if (Math.abs(point.z - 2.52) < .00001 && Math.abs(point.y - 3.79) < .00001) outlet.push(point); }
+    const opening = new THREE.Box3().setFromPoints(outlet);
+    assert.ok(outlet.length >= 4 && opening.getSize(new THREE.Vector3()).x >= 2.6, 'Actual feed must emerge at the independently fixed broad outlet.');
+  }
+  if (state.phase === 'next') assert.equal(current, undefined, 'The next-page phase must retire the actual old page.');
+  if (state.phase === 'settle' && current) assert.ok(bounds(current).max.y <= .0361, 'Settled emitted paper must lie on the bounded ground pile.');
+  if (state.stackCount > 0) assert.ok(top && bounds(top).max.y <= .0331 && bounds(top).min.y >= -.00001, 'Actual retained top page must remain on the bounded ground pile.');
+  return { ...state, actualMeshes: actual.length, submittedTriangles: actual.reduce((sum,piece) => sum + piece.geometry.attributes.position.count / 3, 0) };
 }
 
 function supportAt(point, surfaces, tolerance = .003) {
@@ -326,6 +365,101 @@ function assertServiceGuards() {
   }
   assert.equal(records.length, 66, 'Required 38 landings, 26 flight sides and two approach edges must all be inspected.');
   return records;
+}
+
+function assertTravelSupport(segments) {
+  const fixed = pieces(world.group.getObjectByName('printer-fixed-world'));
+  const walking = segments.filter(segment => segment.kind === 'walk'), floors = [...new Set(walking.flatMap(segment => segment.points.map(point => point[1])))], cells = new Map();
+  const cellSize = .25;
+  for (const floor of floors) {
+    const grid = new Map(); cells.set(floor, grid);
+    for (const piece of fixed) {
+      let bounds = supportBounds.get(piece); if (!bounds) { bounds = new THREE.Box3().setFromObject(piece); supportBounds.set(piece, bounds); }
+      if (floor < bounds.min.y - .003 || floor > bounds.max.y + .003) continue;
+      for (let x = Math.floor((bounds.min.x - .00001) / cellSize); x <= Math.floor((bounds.max.x + .00001) / cellSize); x++) for (let z = Math.floor((bounds.min.z - .00001) / cellSize); z <= Math.floor((bounds.max.z + .00001) / cellSize); z++) {
+        const key = `${x},${z}`, bin = grid.get(key) ?? []; bin.push(piece); grid.set(key, bin);
+      }
+    }
+  }
+  let footprints = 0;
+  for (const segment of walking) for (let edge = 1; edge < segment.points.length; edge++) {
+    const a = new THREE.Vector3(...segment.points[edge - 1]), b = new THREE.Vector3(...segment.points[edge]), count = Math.max(1, Math.ceil(a.distanceTo(b) / .025));
+    for (let i = 0; i <= count; i++) for (const dx of [-.065, .065]) for (const dz of [-.065, .065]) {
+      const point = a.clone().lerp(b, i / count).add(new THREE.Vector3(dx, 0, dz));
+      const nearby = cells.get(point.y).get(`${Math.floor(point.x / cellSize)},${Math.floor(point.z / cellSize)}`) ?? [];
+      assert.ok(supportAt(point, nearby), `Shared transit ${segment.id} loses actual walking support at ${point.toArray().join(',')}.`); footprints++;
+    }
+  }
+  assert.ok(footprints > 4000, 'All shared transit walking connectors must be sampled against emitted supports.');
+  return { footprints, maximumSpacing: .025, footprintCorners: .065 };
+}
+
+function assertSlideExitGuards() {
+  const actual = pieces(world.group.getObjectByName('printer-fixed-world')).filter(piece => piece.name.startsWith('printer-slide-exit-'));
+  const records = [];
+  for (const [side, axis, fixed, low, high] of [['front', 'x', 1.495, -3.35, -2.96], ['right', 'z', -2.96, .32, 1.495]]) {
+    const rail = actual.find(piece => piece.name === `printer-slide-exit-${side}-top`);
+    assert.ok(rail, 'Exposed slide exit edge requires actual ' + side + ' guard.');
+    const bounds = new THREE.Box3().setFromObject(rail), other = axis === 'x' ? 'z' : 'x';
+    assert.ok(Math.abs(bounds.getCenter(new THREE.Vector3())[other] - fixed) < .00001 && Math.abs(bounds.getCenter(new THREE.Vector3()).y - 5.34) < .00001 && bounds.min[axis] <= low + .00001 && bounds.max[axis] >= high - .00001, 'Slide exit guard must cover its actual exposed edge.');
+    const posts = actual.filter(piece => piece.name.startsWith(`printer-slide-exit-${side}-post-`)).map(piece => new THREE.Box3().setFromObject(piece)).sort((a,b) => a.min[axis] - b.min[axis]);
+    assert.ok(posts.length >= 6 && posts.every(box => box.min.y < 5.00001 && box.max.y >= 5.33999 && Math.abs(box.getCenter(new THREE.Vector3())[other] - fixed) < .00001), 'Slide exit infill must join the floor to its rail.');
+    let end = low, gap = 0;
+    for (const post of posts) { gap = Math.max(gap, post.min[axis] - end); end = Math.max(end, post.max[axis]); }
+    gap = Math.max(gap, high - end);
+    assert.ok(gap <= .065, 'Slide exit guard infill leaves a body-sized gap.');
+    records.push({side, posts:posts.length, maximumClearGap:gap});
+  }
+  return records;
+}
+
+function assertHollowSlide(travel) {
+  const fixed = pieces(world.group.getObjectByName('printer-fixed-world')), boxes = new Map(fixed.map(piece => [piece, new THREE.Box3().setFromObject(piece)]));
+  const duct = pieces(world.group.getObjectByName('looping-duct')), wall = duct.find(piece => piece.name === 'printer-slide-hollow-wall');
+  assert.ok(wall, 'The usable slide requires an actual thick inner/outer wall.');
+  const p = wall.geometry.attributes.position, edges = new Map(), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  let volume = 0;
+  const key = i => [p.getX(i), p.getY(i), p.getZ(i)].map(value => value.toFixed(5)).join(',');
+  for (let i = 0; i < p.count; i += 3) {
+    a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
+    assert.ok([...a.toArray(), ...b.toArray(), ...c.toArray()].every(Number.isFinite), 'Slide wall vertices must be finite.');
+    volume += a.dot(b.clone().cross(c)) / 6;
+    for (let j = 0; j < 3; j++) {
+      const one = key(i + j), two = key(i + (j + 1) % 3), label = [one, two].sort().join('|'), uses = edges.get(label) ?? [];
+      uses.push(one < two ? 1 : -1); edges.set(label, uses);
+    }
+  }
+  assert.ok(volume > 0, 'Actual hollow slide wall must have outward winding and positive volume.');
+  assert.ok([...edges.values()].every(uses => uses.length === 2 && uses[0] + uses[1] === 0), 'Actual slide wall must be a closed consistently wound manifold around its bore.');
+  const couplings = duct.filter(piece => piece.name.startsWith('printer-slide-annular-coupling-'));
+  assert.equal(couplings.length, 2, 'Both actual slide mouths require annular couplings.');
+  let boreSamples = 0;
+  for (const coupling of couplings) {
+    const bounds = boxes.get(coupling) ?? new THREE.Box3().setFromObject(coupling), center = bounds.getCenter(new THREE.Vector3());
+    assert.ok(bounds.getSize(new THREE.Vector3()).x < .10, 'Actual slide coupling axis must face the supported deck.');
+    for (const along of [-.032, 0, .032]) for (let i = 0; i < 25; i++) {
+      const radius = i === 24 ? 0 : .60, angle = i / 24 * Math.PI * 2;
+      const point = center.clone().add(new THREE.Vector3(along, Math.cos(angle) * radius, Math.sin(angle) * radius));
+      const probe = new THREE.Box3(point.clone().addScalar(-.002), point.clone().addScalar(.002));
+      const blocker = fixed.find(piece => boxes.get(piece).intersectsBox(probe) && intersectsMeshVolume(piece, probe));
+      assert.ok(!blocker, `Actual slide mouth must remain hollow; ${blocker?.name} blocks the bore at ${point.toArray().join(',')}.`); boreSamples++;
+    }
+  }
+  const ray = new THREE.Raycaster(), distances = [];
+  let previous;
+  for (let i = 0; i <= 400; i++) {
+    const sample = travel.samplePrinterSlide(i / 400), seat = new THREE.Vector3(...sample.seat), normal = new THREE.Vector3(...sample.contactNormal);
+    assert.ok(!previous || seat.y <= previous.y + .00001, 'Actual slide contact channel must descend continuously.');
+    if (previous) assert.ok(seat.distanceTo(previous) < .06, 'Slide contact channel contains a discontinuity.');
+    ray.set(seat, normal.clone().negate()); ray.far = .03;
+    const contact = ray.intersectObjects([wall, ...couplings], false)[0];
+    assert.ok(contact && Math.abs(contact.distance - .008) < .00001, `Shared slide seat sample${i}/400 must remain .008 inside the actual emitted inner wall or annular mouth; observed ${contact?.distance ?? 'no surface'}.`); distances.push(contact.distance);
+    if (i === 0 || i === 400) {
+      assert.ok(Math.abs(seat.y - (i ? 5 : 9) - .008) < .00001 && normal.y > .9999, 'Both slide mouths must meet the fixed floor5/roof9 without an upside-down endpoint.');
+    }
+    previous = seat;
+  }
+  return { wallTriangles: p.count / 3, wallVolume: volume, manifoldEdges: edges.size, boreSamples, boreRadius: .60, contactSamples: distances.length, contactMin: Math.min(...distances), contactMax: Math.max(...distances) };
 }
 
 async function measurePeople() {
@@ -448,6 +582,18 @@ try {
   const outer = new THREE.Mesh(outerGeometry, proofMaterial), inner = new THREE.Mesh(innerGeometry, proofMaterial); outer.updateMatrixWorld(); inner.updateMatrixWorld();
   assert.equal(meshesNear(outer, inner, .000005, () => {}), true, 'Closed solid enclosure remains detected by the instrument.');
   report.closedEnclosureInstrument = true;
+  const drawGeometry = new THREE.BufferGeometry();
+  drawGeometry.setAttribute('position', new THREE.Float32BufferAttribute([2,0,0, 2.2,0,0, 2,.2,0, -.1,0,-.1, .1,0,-.1, 0,0,.1], 3).setUsage(THREE.DynamicDrawUsage));
+  drawGeometry.userData.solidRanges = [{ start:0, count:3, name:'visible-clear-triangle' }, { start:3, count:3, name:'allocated-enclosed-triangle' }];
+  geometries.add(drawGeometry); const drawRoot = new THREE.Group(), drawMesh = new THREE.Mesh(drawGeometry, proofMaterial); drawRoot.add(drawMesh); drawRoot.updateMatrixWorld(true);
+  drawGeometry.setDrawRange(0,3);
+  assert.equal(pieces(drawRoot).length,1); assert.equal(meshesNear(pieces(drawRoot)[0],outer,.000005,()=>{},true),false, 'Undrawn allocated capacity must not masquerade as a rendered obstruction.');
+  drawGeometry.setDrawRange(0,6);
+  assert.equal(pieces(drawRoot).length,2); assert.ok(pieces(drawRoot).some(piece=>meshesNear(piece,outer,.000005,()=>{},true)), 'Submitting the same enclosed triangle must reject actual clearance.');
+  drawGeometry.setDrawRange(0,3); assert.equal(pieces(drawRoot).length,1);
+  drawMesh.visible=false; assert.equal(pieces(drawRoot).length,0); drawMesh.visible=true;
+  report.submittedPopulationInstrument = { allocatedTriangles:2, submittedPositiveTriangles:1, submittedControlTriangles:2, hiddenTriangles:0 };
+  report.negativeControls.push('actual-submitted-enclosed-triangle');
   const closedVertices = outerGeometry.toNonIndexed(), openVertices = new THREE.PlaneGeometry(.2, .2).toNonIndexed(); openVertices.translate(2, 0, 0);
   geometries.add(closedVertices); geometries.add(openVertices);
   const mixedGeometry = new THREE.BufferGeometry(); mixedGeometry.setAttribute('position', new THREE.Float32BufferAttribute([...closedVertices.attributes.position.array, ...openVertices.attributes.position.array], 3)); geometries.add(mixedGeometry);
@@ -500,6 +646,28 @@ try {
   assert.throws(assertPaperTail, /ground contact/, 'Raising the actual paper end must reject a floating tail.'); paper.position.y = 0; world.group.updateMatrixWorld(true);
   report.negativeControls.push('actual-raised-paper-tail');
   report.stairs = assertStairGeometry();
+  const travel = await vite.ssrLoadModule('/src/scene/printer-travel.ts');
+  report.travelSupport = assertTravelSupport(travel.printerTravelSegments);
+  report.slideExitGuards = assertSlideExitGuards();
+  restore = moveActualRanges('printer-slide-exit-front-', [0, 0, 20]);
+  assert.throws(assertSlideExitGuards, /cover its actual exposed edge/, 'Removing the actual slide-exit front barrier must reject its exposed edge.'); restore();
+  report.negativeControls.push('actual-missing-slide-exit-guard'); assertSlideExitGuards();
+  restore = moveActualRanges('printer-slide-exit-front-post-3', [20, 0, 0], true);
+  assert.throws(assertSlideExitGuards, /body-sized gap/, 'Removing a middle slide-exit post must reject the actual infill gap.'); restore();
+  report.negativeControls.push('actual-missing-slide-exit-infill'); assertSlideExitGuards();
+  report.hollowSlide = assertHollowSlide(travel);
+  const blockedMouth = pieces(world.group.getObjectByName('looping-duct')).find(piece => piece.name === 'printer-slide-annular-coupling-0'), mouthCenter = new THREE.Box3().setFromObject(blockedMouth).getCenter(new THREE.Vector3());
+  const capGeometry = new THREE.CylinderGeometry(.96, .96, .16, 24).toNonIndexed();
+  capGeometry.userData.solidRanges = [{ start: 0, count: capGeometry.attributes.position.count, name: 'restored-solid-slide-cap' }]; geometries.add(capGeometry);
+  const solidCap = new THREE.Mesh(capGeometry, blockedMouth.material); solidCap.rotation.z = Math.PI / 2; solidCap.position.copy(mouthCenter); world.group.getObjectByName('looping-duct').add(solidCap);
+  world.group.updateMatrixWorld(true); resetPieces();
+  assert.throws(() => assertHollowSlide(travel), /must remain hollow/, 'Restoring the actual solid top coupling must reject the usable bore.');
+  solidCap.removeFromParent(); resetPieces(); report.negativeControls.push('actual-original-solid-slide-cap');
+  assertHollowSlide(travel);
+  restore = moveActualRanges('printer-stair-corner-landing-', [0, 0, 20]);
+  assert.throws(assertStairGeometry, /gallery corner/, 'Removing the actual joined corner deck must reject the balcony junction.'); restore();
+  report.negativeControls.push('actual-missing-balcony-junction');
+  assertStairGeometry();
   report.serviceGuards = assertServiceGuards();
   restore = moveActualRanges('core-flight-0-post-', [0, 0, 20]);
   assert.throws(assertServiceGuards, /infill gap/, 'Removing actual service-flight infill must reject a body-sized opening.'); restore();
@@ -566,7 +734,7 @@ try {
     drawer: movingBatches(world.group.getObjectByName('printer-paper-drawer')),
     print: [...movingBatches(world.group.getObjectByName('paper-waterfall')), ...movingBatches(world.group.getObjectByName('printer-print-button'))],
   };
-  report.openSheetBoundaryEdges = moving.print.filter(piece => piece.userData.source.parent?.name === 'paper-waterfall').map(piece => ({ material: piece.material.name, ...assertOpenEdges(piece) }));
+  report.openSheetBoundaryEdges = moving.print.filter(piece => piece.userData.source.parent?.name === 'paper-waterfall' && !(piece.userData.source instanceof THREE.InstancedMesh)).map(piece => ({ material: piece.material.name, ...assertOpenEdges(piece) }));
   const sheet = moving.print.find(piece => piece.material.name === 'paper-ribbon'), sheetBox = new THREE.Box3().setFromObject(sheet), shellGeometry = new THREE.BoxGeometry(...sheetBox.getSize(new THREE.Vector3()).addScalar(.2).toArray());
   geometries.add(shellGeometry); const shell = new THREE.Mesh(shellGeometry, proofMaterial); shell.position.copy(sheetBox.getCenter(new THREE.Vector3())); shell.updateMatrixWorld();
   assert.equal(meshesNear(sheet, shell, .000005, () => {}, true), true, 'The actual open sheet fully inside a closed container must still reject clearance.');
@@ -582,7 +750,7 @@ try {
   ];
   const fixedBounds = new Map(fixed.map(piece => [piece, new THREE.Box3().setFromObject(piece)]));
   const housing = new THREE.Box3(new THREE.Vector3(-3.80, .45, -2.65), new THREE.Vector3(3.80, 3.45, 2.68));
-  function isOpenSheet(piece) { return piece.userData.source.parent?.name === 'paper-waterfall'; }
+  function isOpenSheet(piece) { return piece.userData.source.parent?.name === 'paper-waterfall' && !(piece.userData.source instanceof THREE.InstancedMesh); }
   function intentional(part, obstacle) {
     const name = obstacle.userData.range.name;
     if (part.id === 'scanner' && name.startsWith('scanner-hinge-')) return true;
@@ -590,9 +758,10 @@ try {
     if (part.id === 'print' && name === 'print-control-housing') return true;
     return false;
   }
-  function verifyPose(part, progress) {
-    part.setProgress(progress); world.group.updateMatrixWorld(true); refresh(moving[part.id]);
-    if (part.id === 'print') assertPaperTail();
+  function verifyPose(part, progress, time) {
+    part.setProgress(progress);
+    if (part.id === 'print') { world.update(time ?? world.paperSnapshot().time); world.group.updateMatrixWorld(true); moving.print = [...movingBatches(paper), ...movingBatches(world.group.getObjectByName('printer-print-button'))]; }
+    world.group.updateMatrixWorld(true); refresh(moving[part.id]);
     for (const piece of moving[part.id]) {
       const bounds = new THREE.Box3().setFromObject(piece);
       assert.ok(piece.matrixWorld.elements.every(Number.isFinite), part.id + ': finite emitted transforms required.');
@@ -605,12 +774,15 @@ try {
         assert.equal(hit, false, part.id + ': actual emitted geometry intersects fixed ' + obstacle.name + ' at ' + progress.toFixed(5));
       }
     }
+    if (part.id === 'print') assertPaperPhase();
   }
   report.poseSamples = 0;
   for (const part of [scanner, drawer, print]) for (let sample = 0; sample <= 64; sample++) { verifyPose(part, sample / 64); report.poseSamples++; }
+  report.paperPhaseSamples = [];
+  for (const time of [0, 1.35, 2.8, 4.3, 4.8, 5.65, 6.1, 8.5, 16, 128, 130.8, 133.6]) { verifyPose(print, 1, time); report.paperPhaseSamples.push(assertPaperPhase()); }
   const controlContactStart = report.contacts.length;
   paper.position.x = 0;
-  assert.throws(() => verifyPose(print, 0), /actual emitted geometry intersects fixed/, 'The original actual sheet/side-panel surface crossing must still fail with open-sheet semantics.');
+  assert.throws(() => verifyPose(print, 0, 0), /actual emitted geometry intersects fixed/, 'The original actual sheet/side-panel surface crossing must still fail with open-sheet semantics.');
   report.originalPaperCrossing = report.contacts.splice(controlContactStart);
   paper.position.x = -.15; world.group.updateMatrixWorld(true); refresh(moving.print); report.negativeControls.push('actual-original-paper-side-panel-crossing');
   report.combinedEndpoints = 0;
@@ -640,9 +812,14 @@ try {
   report.negativeControls.push('actual-plant-in-drawer-travel');
   controlRoot.traverse(mesh => { if (mesh instanceof THREE.Mesh) geometries.add(mesh.geometry); });
   drawer.setProgress(0); world.group.remove(controlRoot);
+  report.sourceHashesAfter = Object.fromEntries(await Promise.all(paths.map(async path => [path, hash(await readFile(path))])));
+  assert.deepEqual(report.sourceHashesAfter, report.sourceHashes, 'Actual printer-parts source must remain frozen throughout the gate.');
   report.pass = true;
   console.log('PASS bounded copier mass/window-wall/feature guards, 195 emitted scanner/drawer/feed poses, eight combined endpoints, occupied support envelopes and executed actual-geometry obstruction controls. Native reference fidelity still requires image review.');
+} catch (error) {
+  report.error = error.stack; throw error;
 } finally {
+  report.sourceHashesAfter ??= Object.fromEntries(await Promise.all(paths.map(async path => [path, hash(await readFile(path))])));
   await writeFile(output + '/report.json', JSON.stringify(report, null, 2));
   for (const geometry of geometries) geometry.dispose();
   for (const material of materials) material.dispose();

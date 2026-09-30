@@ -262,7 +262,8 @@ function startScene() {
     }
     printerFramingCorners = [...envelope.map(vertex => new THREE.Vector3(vertex[2], vertex[3], vertex[4])), highestVerticalPoint];
     printerMechanisms = createMechanismState(printer.parts.map(part => part.id),
-      (id, progress) => printer!.parts.find(part => part.id === id)!.setProgress(progress), () => true);
+      (id, progress) => printer!.parts.find(part => part.id === id)!.setProgress(progress), () => true, undefined,
+      (id, from, to) => printer!.parts.find(part => part.id === id)!.recordTravel?.(from, to));
     for (const part of printer.parts) printerMechanisms.setProgress(part.id, initialPrinterProgress(part));
   }
   function switchScene(next: SceneId) {
@@ -531,7 +532,7 @@ function startScene() {
       state: () => ({ time: activeScene === 'controller' ? worldTime : printerTime, scene: activeScene, paused: paused(), reducedMotion, testFrozen, view, suspended, disposed, contextLost, heldKeys: [...heldKeys].sort() }),
       setInputEnabled: (enabled: boolean) => { controls.enabled = enabled; if (!enabled) { clearHeldKeys(); mechanismInput?.cancel(); printerInput?.cancel(); } },
       selectedScene: () => activeScene,
-      printer: () => printer ? { time: printerTime, life: printerLife!.snapshot(), mechanisms: printerMechanisms!.snapshot(), events: printerMechanisms!.events(), input: printerInput?.diagnostics() } : undefined,
+      printer: () => printer ? { time: printerTime, paper: printer.paperSnapshot(), life: printerLife!.snapshot(), mechanisms: printerMechanisms!.snapshot(), events: printerMechanisms!.events(), input: printerInput?.diagnostics() } : undefined,
       printerPartPoints: () => printerInput?.screenPoints(),
       mechanisms: mechanisms.snapshot,
       mechanismEvents: mechanisms.events,
