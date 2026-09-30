@@ -174,11 +174,14 @@ export function createMechanismInput(options: InputOptions) {
     // OrbitControls owns pointer capture and its up/cancel path, but must not orbit on click jitter.
     event.stopImmediatePropagation();
   }, { capture: true, signal });
+  // Cancelled contacts no longer have capture, so their real release may target
+  // outside the canvas. Bookkeeping must still see it before target handlers run.
+  window.addEventListener('pointerup', event => {
+    heldPointers.delete(event.pointerId); touchPointers.delete(event.pointerId);
+  }, { capture: true, signal });
   canvas.addEventListener('pointerup', event => {
-    touchPointers.delete(event.pointerId);
     if (gesture?.pointerId === event.pointerId) {
       const down = gesture; gesture = undefined;
-      heldPointers.delete(event.pointerId);
       if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
       physical.press(down.id, false, options.reducedMotion()); physical.tilt(0, 0);
       event.preventDefault(); event.stopImmediatePropagation();
@@ -187,13 +190,16 @@ export function createMechanismInput(options: InputOptions) {
     }
     const down = candidate;
     candidate = undefined;
-    heldPointers.delete(event.pointerId);
     if (!forwardedPointers.delete(event.pointerId)) { event.stopImmediatePropagation(); return; }
     if (!down || down.pointerId !== event.pointerId || event.button !== 0 || modified(event) || !options.enabled() || options.cameraKeysHeld()) return;
     if (Math.hypot(event.clientX - down.x, event.clientY - down.y) > 5 || changedFrom(down.position, down.quaternion)) return;
     if (pick(event.clientX, event.clientY) === down.id) options.toggle(down.id, 'pointer');
   }, { capture: true, signal });
   canvas.addEventListener('pointercancel', cancel, { capture: true, signal });
+  window.addEventListener('pointercancel', event => {
+    // OrbitControls only hears canvas cancellation; drain every ID on an outside end.
+    if (event.target !== canvas && heldPointers.has(event.pointerId)) cancel();
+  }, { capture: true, signal });
   canvas.addEventListener('lostpointercapture', event => {
     // A normal up has already removed this ID. Unexpected capture loss must also end OrbitControls.
     if (forwardedPointers.has(event.pointerId) || gesture?.pointerId === event.pointerId) cancel();

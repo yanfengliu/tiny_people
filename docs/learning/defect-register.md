@@ -1,5 +1,13 @@
 # Defect register
 
+## Outside-canvas release blocked fresh touch input (F1)
+
+**Review finding and native reproduction:** After cancelling three touches or mixed mouse/touch input, moving the remaining touch outside the viewport and lifting it left later scene drags inert. Trusted native move/up events at x=-30 targeted HTML instead of the canvas. The next drag moved the camera zero units, while the identical drag after a synthetic blur moved it 2.5355 units. A separate narrowed-canvas fixture also reproduced the issue; the permanent gate uses unchanged canvas bounds.
+
+**Cause and correction:** Cancelled contacts deliberately lose capture but remain tracked until they end. Canvas-only pointer-up/cancel listeners missed their outside end. Window capture-phase pointer-up now clears contact bookkeeping, while canvas handlers retain physical activation and ownership. An outside pointer-cancel drains the tracked stream through the existing cancellation path so OrbitControls also receives its canvas cancellation.
+
+**Check:** The touch gate verifies actual trusted HTML-targeted touch-up and touch-cancel beyond the viewport after third-finger and mixed-input cancellation in portrait and landscape. It compares fresh native camera movement with a same-input blur positive control and preserves physical poses and mechanism state. Restoring committed runtime `cc7c494c81345baedaa7427ff3686b6156bbf4ff` makes this gate fail the fresh-drag recovery assertion; the repair passes. [Gate proof](gate-proofs.md#outside-canvas-native-releases-f1-2026-09-29) preserves the precise source and report hashes.
+
 ## Cancellation left native touch capture active (F0)
 
 **Review finding:** Two-touch cancellation claimed to drain capture, but `hasPointerCapture` still reported the first native ID after blur or disabled input. A third touch also retained its implicit capture. The probe did not establish a visible camera failure from the retained capture alone.

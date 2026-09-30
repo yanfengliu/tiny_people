@@ -78,7 +78,7 @@ async function pageAt(url, viewport, production = false) {
   await page.addInitScript(() => {
     window.__touchWitness = [];
     for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'gotpointercapture', 'lostpointercapture']) addEventListener(type, event => {
-      if (event.pointerType === 'touch') window.__touchWitness.push({ type, id: event.pointerId, trusted: event.isTrusted });
+      if (event.pointerType === 'touch') window.__touchWitness.push({ type, id: event.pointerId, trusted: event.isTrusted, x: event.clientX, y: event.clientY, target: event.target?.nodeName, canvas: event.target === document.querySelector('canvas') });
     }, true);
   });
   await page.goto(url); await page.locator('canvas').waitFor();
@@ -191,6 +191,36 @@ async function mixedQuarantine(page, touch, orientation) {
   releasedCaptures(await captures(page, [...touch.nativeIds.values()]), record.name);
   await touch.up(1); await touch.up(3); await freshOrbit(page, touch, record.name + '-all-lifted-recovery'); report.checks.push(record.name);
 }
+async function outsideRelease(page, touch, orientation, action, ending) {
+  await reset(page); const cursor = await page.evaluate(() => window.__touchWitness.length);
+  if (action === 'mixed') { await page.mouse.move(70, 80); await page.mouse.down(); await page.mouse.move(71, 80); }
+  await touch.down(1, { x: 100, y: 80 }); await touch.move([[1, { x: 101, y: 80 }]]);
+  if (action === 'third-finger') {
+    await touch.down(2, { x: 150, y: 80 }); await touch.move([[2, { x: 151, y: 80 }]]); await touch.down(3, { x: 220, y: 80 });
+    await touch.up(2); await touch.up(3);
+  } else await page.mouse.up();
+  const id = touch.nativeIds.get(1), before = await camera(page), beforeState = await state(page);
+  await touch.move([[1, { x: -30, y: 80 }]]);
+  if (ending === 'up') await touch.up(1); else await touch.cancel();
+  const witness = await page.evaluate(start => window.__touchWitness.slice(start), cursor);
+  const released = witness.filter(event => event.id === id && event.type === 'pointer' + ending && event.trusted);
+  assert.equal(released.length, 1, 'Outside release needs exactly one trusted native end event.');
+  assert.equal(released[0].canvas, false, 'The native end must really target outside the canvas.');
+  sameView(before, await camera(page));
+  const record = { name: orientation + '-' + action + '-outside-' + ending, witness, beforeFresh: await camera(page) };
+  await touch.down(10, { x: 60, y: 70 }); await touch.move([[10, { x: 90, y: 70 }]]); await touch.up(10);
+  await observe(page, record.name + '-fresh-drag'); record.afterFresh = await camera(page);
+  // Same native drag after explicit lifecycle cleanup proves this input/viewport fixture works.
+  await page.evaluate(() => dispatchEvent(new Event('blur'))); record.beforeControl = await camera(page);
+  await touch.down(11, { x: 60, y: 70 }); await touch.move([[11, { x: 90, y: 70 }]]); await touch.up(11);
+  await observe(page, record.name + '-positive-control'); record.afterControl = await camera(page);
+  const movement = (a, b) => Math.hypot(...a.position.map((n, i) => n - b.position[i]));
+  record.freshMovement = movement(record.beforeFresh, record.afterFresh); record.controlMovement = movement(record.beforeControl, record.afterControl);
+  (report.outsideRelease ??= []).push(record);
+  assert.ok(record.controlMovement > .1, 'The native drag fixture must move the camera after lifecycle cleanup.');
+  assert.ok(record.freshMovement > .1, 'A fresh native drag must recover after a cancelled contact ends outside the canvas.');
+  neutral(await physical(page)); assert.deepEqual(await state(page), beforeState); report.checks.push(record.name);
+}
 const oldCancellation = process.argv.includes('--old-cancellation');
 try {
   await mkdir(output, { recursive: true }); report.source = await digests('src'); report.production = await digests('dist');
@@ -279,6 +309,7 @@ try {
     report.checks.push(orientation + '-camera-limits');
     for (const start of ['background', 'joystick']) for (const action of ['blur', 'disabled', 'third-finger']) await captureCancellation(page, touch, orientation, start, action);
     await mixedQuarantine(page, touch, orientation);
+    for (const action of ['third-finger', 'mixed']) for (const ending of ['up', 'cancel']) await outsideRelease(page, touch, orientation, action, ending);
     for (const action of ['browser-touchcancel', 'lost-capture', 'blur-event', 'disabled', 'third-finger']) {
       await reset(page); const beforeState = await state(page);
       await touch.down(1, { x: 70, y: 80 });
