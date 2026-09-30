@@ -1,0 +1,20 @@
+# Printer travel and printing
+
+Base: main c92d8ad. The user requests a hollow usable tube slide, repair of the marked balcony gap, residents using stairs between floors, and repeated gradual paper printing, falling and stacking. Work 5 remains accepted history; its unanimated stair boundary is now superseded by this request.
+
+The coordinator owns this queue, contracts, acceptance and delivery. Geometry owns printer.ts/access and the travel contract; life owns printer-life.ts and printer-only poses; paper owns a separate paper module. Edits are isolated in output/worktrees/printer-transit-world, printer-transit-life and printer-paper-cycle. One expensive gate runs at a time with coordinator approval. No new dependencies or controller redesign.
+
+Acceptance: preserve the reference silhouette and shared camera/scene controls; actual open tube ends connect supported entries and exits; residents continuously climb and descend the emitted stairs and visibly enter, slide through and exit the tube without teleportation or collisions; the marked balcony junction is joined coherently; paper grows from the outlet, carries its print along with it, releases and settles onto a bounded stack before another page emerges. Pause, reduced motion, inactive scene state, mouse printing and resources remain coherent.
+
+Verification starts with existing actual-world printer parts/life instruments and native scene controls. Add bounded durable checks for hollow clearance, connected junctions, inter-floor travel/foot contacts and multi-cycle paper motion; reintroduce each reported defect to prove its check goes RED. Review native fixed/varied views and time sequences individually, then independent integrated source/native review. Preserve controller parity; run typecheck/build and affected gates on final code, merge/push, follow Pages, repoint the requested hidden preview and clean owned processes/worktrees.
+
+- [x] Inspect instructions, current clean main and the four marked requests; create isolated worktrees and a fresh goal.
+- [ ] Geometry: establish shared route/slide coordinates and repair hollow tube and marked junction; provide actual-mesh checks and handoff.
+- [ ] Life: implement continuous inter-floor stairs and slide trips with coherent poses, contacts and deterministic time; provide checks and handoff.
+- [ ] Paper: implement repeated feed/release/fall/stack lifecycle with bounded resources and actual print control; provide checks and handoff.
+- [ ] Integrate contracts and code in the geometry worktree; verify the complete native behavior and independent review.
+- [ ] Commit green milestones, merge/push main, verify deployment and local preview, then remove owned worktrees and scratch resources.
+
+Current status: geometry and life agree a shared emitted-geometry contract for a closed trip from floor3.5 up the two external flights, through internal stairs to roof9, then through a hollow slide to floor5 and back down. First existing parts report E2515EE9 passes 195 poses, eight endpoints and 26 controls; its wrapper lacks recursive child observation and has a separate recovered cleanup record. Life now owns the expensive-gate lease. Default transform parity passes 17 phases/26 IDs (430DCBFD), while first actual transit contact report 0BF042CE is RED on mouth shoes, stair approaches/guards and short-walk easing; owners are repairing those real findings. Paper recovered its connection and is implementing a retained-time 16-second feed/fall/stack cycle with bounded meshes. Native acceptance and full integrated checks remain pending.
+
+Attempt record: new task starts from c92d8ad with the work5 evidence retained under output/printer-delivery-handoff/. Fixed-floor resident loops, solid tube couplings and the .15-unit static paper shift are known starting defects. New subagent creation hit the thread limit; existing completed workers were reassigned into fresh isolated worktrees. Paper's first turn lost its stream before any edit or process, and one explicit restart recovered it. No geometry or visual gate has been weakened or claimed complete.
