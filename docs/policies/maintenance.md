@@ -30,6 +30,54 @@ CPU-work limits cover synchronous updates and render submission: baseline/active
 
 The route gate samples seven routes at intervals no greater than .025 units, checks .085-radius footprints and 17 stationary bodies, and samples actor pairs over 240 seconds. Its mutations cover off-device travel, joystick intersection and a book inside a seated pelvis. Resident checks include transformed shoe vertices on slopes, seated clearance, head proportions, hand/prop surfaces, cup contact and watering drops against soil, with low-knee and detached-book controls. Plant checks include closed leaf/pot geometry, footprints, shared materials and roots touching soil, with a lifted-root control. Social state/contact checks cover 240 simulated seconds; detailed mesh sampling and native review have their own bounds and do not establish unlimited-duration behavior or clearance on every frame.
 
+## Gate details
+
+Each entry is the rest of a line of the Gates section of [AGENTS.md](../../AGENTS.md), which keeps the line's command and its opening sentence; a sentence that line cuts short is here in full. The text moved here from AGENTS.md, sentence for sentence, on 2026-10-30.
+
+### `node scripts/check-process-ownership.mjs`
+
+This launches no application and performs no process observation or termination.
+
+### `npm run check:social-contact`
+
+Both executed old-order controls must fail.
+
+### `npm run check:physical-controls`
+
+Concealed button stems intentionally enter their own housing; visible tops stay above their bezel. Sampled tilt coverage is not a continuous sweep certificate.
+
+### `npm run check:physical-input`
+
+Captures and source hashes live under ignored `output/physical-input/`.
+
+### `npm run check:touch-input`
+
+Captures and hashes live under ignored `output/touch-input/`. `--old-cancellation` restores the original second-pointer cancellation and must fail the first spread assertion.
+
+### `node scripts/mechanism-performance.mjs --check`
+
+Native frame intervals and paired work difference are diagnostics; this does not measure GPU completion.
+
+### `npm run check:browser` and `npm run check:exploration`
+
+The captures are the visual evidence: inspect them, because the interaction assertions alone establish neither geometry nor framing.
+
+### `npm run check:scenes`
+
+`npm run check:scenes` — all seventeen required groups must run: development/production startup with delayed modules, full-facing held W/S at pitched and near-vertical views in both scenes, scene selection and shared controls, printer surface input, life pause/resume, two-touch ownership, third-touch capture cancellation, reduced-motion/lifecycle recovery, retained state and bounded resources. It also checks reference pink pixels, controller rendering after returning, and 150/600 completed-frame CPU submission budgets with at least twelve trusted commands distributed across every 100-frame portion and at least 120 moving frames. The observed life clock must equal actual clamped frame time; native cadence and its wall-time ratio are diagnostics, not GPU completion. Run after building with installed Chrome. Inspect captures and source/harness hashes under ignored `output/scenes/`. Focused startup, camera, shadow and performance modes establish only their named subgroup. `--old-startup-css`, `--old-xz-facing`, `--old-printer-shadow` and `--old-printer-capture` restore the corresponding executed defect and must fail its assertion.
+
+### `npm run check:printer-life`
+
+See the script header and report for exact sampling bounds.
+
+### `npm run check:printer-parts`
+
+Concealed hinge and housing contacts are explicit; sampled motion does not certify an unlimited continuous sweep.
+
+### The browser gates' CPU proofs
+
+Low, high and changing native cadence must receive adequate observations before assertions. Insufficient native discrimination is reported explicitly and requires the CPU mutation proof; callback stalls are incomplete verification.
+
 ## Source map
 
 - `src/main.ts` and `src/style.css`: shared camera, scene menu, lazy printer initialization, render lifecycle, accessible exploration and scene presentation.
