@@ -6,10 +6,12 @@ A browser miniature with a scene menu: 26 tiny residents live in a charcoal-and-
 
 Accepted touch-zoom work: `docs/work/4_pinch-zoom/plan.md`. Accepted physical-control work: `docs/work/3_pressable-controls/plan.md`. Accepted documentation and publication: `docs/work/2_docs-and-pages/plan.md`. Accepted controller expansion and phases 8–11: `docs/work/1_controller-life-expansion/plan.md`. Accepted baseline and historical phases 1–7: `docs/work/0_procedural-people-world/plan.md`. The repo's own rules, including the colour reference and coordinate frame: [docs/policies/local-rules.md](docs/policies/local-rules.md). Defects the gates missed, with the check that now covers each: `docs/learning/defect-register.md`. How the app behaves and keeps its state, how the checks observe it, and where each part lives in `src/`: [docs/policies/maintenance.md](docs/policies/maintenance.md).
 
-<!-- FLEET-CANON:BEGIN sha=926530db9933 generated from ../fleet/FLEET.md by `npm run sync-canon` — do not edit inside this block; this repo's own rules go in docs/policies/local-rules.md -->
+<!-- FLEET-CANON:BEGIN sha=7f2f32ea7a5c generated from ../fleet/FLEET.md by `npm run sync-canon` — do not edit inside this block; this repo's own rules go in docs/policies/local-rules.md -->
 ## Fleet constitution
 
 Shared rules for every repo under `github/`, kept in `../fleet/FLEET.md`; `../fleet/` is fleet's checkout beside this repo's primary checkout. Where a rule gives its reason, use the reason to judge cases the rule does not name; each `[Rn]`'s history is in `../fleet/docs/canon-rationale.md`. This repo's `docs/policies/local-rules.md` may add rules but cannot change these permissions or limits. [R13]
+
+The main agent owns delivery and may implement directly. Use subagents when bounded, independent work or independent judgment materially improves speed or quality; keep small or tightly coupled work with one agent (owner directive, 2026-11-07). [R2, R3]
 
 The designated coordinator reads `../fleet/docs/skills/coordinator.md` before planning and after each compaction, and any agent reads that file's "Delegate" section before delegating. Before these kinds of work, read the matching section of `../fleet/docs/work-rules.md`: standing loops and unattended runs; editing skills, agent instructions or rules; handing off or stopping mid-task.
 
