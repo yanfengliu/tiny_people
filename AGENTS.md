@@ -52,7 +52,7 @@ The designated coordinator reads `../fleet/docs/skills/coordinator.md` before pl
 
 ## Gates
 
-Node 24.12.0 (`.nvmrc`): a version mismatch is not a code failure. Before any commit that touches code:
+Node 24.12.0 (`.nvmrc`): a version mismatch is not a code failure. On a tree that touches code, before it is handed back or lands:
 
 Run Vite-based gates sequentially within one checkout so their dependency-cache writes cannot race. Physical-control acceptance is in `docs/work/3_pressable-controls/plan.md`. Accepted application checks and their bounds remain in `docs/work/1_controller-life-expansion/plan.md`; documentation and Pages acceptance is in `docs/work/2_docs-and-pages/plan.md`. How the checks observe the app and what bounds their samples: [docs/policies/maintenance.md](docs/policies/maintenance.md#verification-details). Each line below is a gate and what it checks; the rest of each line, its controls and its bounds, is under [Gate details](docs/policies/maintenance.md#gate-details).
 
